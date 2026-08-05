@@ -46,6 +46,7 @@ interface GameEvent {
   title: string;
   description: string;
   options: EventOption[];
+  forceAsLast?: boolean;
 }
 
 interface CareerEntry {
@@ -249,6 +250,19 @@ const EVENTS: Record<Channel, GameEvent[]> = {
           failure: { followers: 1000, money: 1, message: "Tu ausencia en horas clave fue notada. No causaste impacto." } },
       ],
     },
+    {
+      title: "Fajense de Manos",
+      description: "Azuquita Rodrigues organiza en el Luna Park un evento de boxeo con streamers e influencers. Este año tu rival será {RIVAL}.",
+      forceAsLast: true,
+      options: [
+        { text: "Entrenar a fondo", detail: "A darlo todo", successChance: 0.50,
+          success: { followers: 2000, money: 0, message: "Noqueas a {RIVAL} en el primer Round. Alzas el cinto con orgullo" },
+          failure: { followers: -6000, money: 0, message: "Te pasaste un poco y {RIVAL} termina internado. En las redes te llaman \"Asesino\", el cinto te lo mandan por correo 10 días después." } },
+        { text: "Apenas entrenas", detail: "Total es todo show", successChance: 0.50,
+          success: { followers: 2000, money: 0, message: "Ninguno de los 2 emboca una piña pero el público se caga de risa. Ganás por puntos." },
+          failure: { followers: -1000, money: 0, message: "Te quedás sin aire al minuto de pelea, {RIVAL} no perdona y te noquea. Te boludean en twitter por semanas" } },
+      ],
+    },
   ],
 
   ALGA: [
@@ -286,6 +300,42 @@ const EVENTS: Record<Channel, GameEvent[]> = {
         { text: "Defendés el sketch", detail: "El humor sana", successChance: 0.30,
           success: { followers: 8000, money: 0, message: "Das un discurso sobre la doble moral y sobre el humor. Te los metiste a todos en el bolsillo" },
           failure: { followers: 0, money: 0, message: "Granate te llama en privado y te echa.", specialOutcome: "forcedTransfer" } },
+      ],
+    },
+    {
+      title: "Golpe de Nostalgia",
+      description: "Traes a todo el elenco de RadioMatch, un programa de los '90 querido y odiado por igual. ¿Cómo encarás el programa?",
+      options: [
+        { text: "Homenajear a RadioMatch al 100%", detail: "El humor no caduca", successChance: 0.50,
+          success: { followers: 3000, money: 0, message: "Producción ríe, el chat ríe, las redes también. Tu niño interior esta feliz" },
+          failure: { followers: -3000, money: 0, message: "Al 3er chiste de suegras las visitas caen. El humor evolucionó, vos no." } },
+        { text: "Entrevista íntima", detail: "Querés escuchar a las personas y no a los personajes", successChance: 0.50,
+          success: { followers: 5000, money: 0, message: "Los invitados se abren con vos y cuentan secretos del programa. En las redes te felicitan por tus preguntas." },
+          failure: { followers: -4000, money: 0, message: "La gente te putea porque querían escuchar los chistes de Yuyo y Escorpión." } },
+      ],
+    },
+    {
+      title: "Nueva incorporación",
+      description: "Granate se roba una figura de Ruzu y te conduzcas un programa con ella para justificar el sueldo. Vos no te la bancás.",
+      options: [
+        { text: "Aceptás", detail: "El jefe es el jefe", successChance: 0.50,
+          success: { followers: 4000, money: 0, message: "Contra todo prejuicio tenés una gran química con ella. El programa la rompe." },
+          failure: { followers: -2000, money: 0, message: "No te sigue los chistes y la falta de química se nota. El programa dura menos de 1 mes." } },
+        { text: "Respetuosamente te negás", detail: "La honestidad es tu estandarte", successChance: 0.50,
+          success: { followers: 200, money: 0, message: "Migue Granate lo entiende y va rotando a la piba por varios programas. Al final se da cuenta que no sirve y la echa." },
+          failure: { followers: 0, money: 0, message: "Migue Granate te tilda de mal compañero y mala leche." } },
+      ],
+    },
+    {
+      title: "La guerra de los bots",
+      description: "Un canal rival insinúa en redes que ALGA está inflando artificialmente su audiencia. El tema domina las tendencias y todos esperan una respuesta.",
+      options: [
+        { text: "Responder públicamente", detail: "Vamos a defender nuestra credibilidad", successChance: 0.60,
+          success: { followers: 3000, money: 0, message: "Hablas seriamente mirando a cámara y desmentís las acusaciones con datos. El público respalda el canal" },
+          failure: { followers: -1500, money: 0, message: "La discusión escala y varios medios siguen hablando del tema." } },
+        { text: "Ignorar la polémica", detail: "Ladran Sancho", successChance: 0.85,
+          success: { followers: 1000, money: 0, message: "La noticia muere a los pocos días." },
+          failure: { followers: -3000, money: 0, message: "Muchos interpretan el silencio como una admisión." } },
       ],
     },
     {
@@ -714,13 +764,71 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+const FAJENSE_DE_MANOS_RIVALS = [
+  "PuerroXeneize",
+  "Gosku",
+  "Falito",
+  "Mumu",
+  "ShinjiBostero",
+  "Esprin",
+  "Juan Tuffo",
+  "La Paga",
+  "Rulomgod",
+  "Chupa Ramirez",
+  "HagovCascote",
+];
+
+function pickRandomFajenseRival(usedRivals: string[]) {
+  const available = FAJENSE_DE_MANOS_RIVALS.filter((r) => !usedRivals.includes(r));
+  const pool = available.length ? available : FAJENSE_DE_MANOS_RIVALS;
+  const rival = pool[Math.floor(Math.random() * pool.length)];
+  return {
+    rival,
+    usedRivals: available.length ? [...usedRivals, rival] : [rival],
+  };
+}
+
+function substituteEventPlaceholders(ev: GameEvent, vars: Record<string, string>): GameEvent {
+  const replace = (value: string) => value.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? `{${key}}`);
+  return {
+    ...ev,
+    title: replace(ev.title),
+    description: replace(ev.description),
+    options: ev.options.map((opt) => ({
+      ...opt,
+      text: replace(opt.text),
+      detail: replace(opt.detail),
+      success: { ...opt.success, message: replace(opt.success.message) },
+      failure: { ...opt.failure, message: replace(opt.failure.message) },
+    })),
+  };
+}
+
+function applyEventVariables(events: GameEvent[], usedRivals: string[]) {
+  let nextUsed = [...usedRivals];
+  const resolved = events.map((ev) => {
+    if (!ev.title.includes("{RIVAL}") && !ev.description.includes("{RIVAL}")) return ev;
+    const { rival, usedRivals: updated } = pickRandomFajenseRival(nextUsed);
+    nextUsed = updated;
+    return substituteEventPlaceholders(ev, { RIVAL: rival });
+  });
+  return { events: resolved, usedRivals: nextUsed };
+}
+
 const RENDER_SOLD_TITLE = "⚡ RENDER FUE VENDIDO";
 
 function pickEvents(channel: Channel, count: number, renderSold = false): GameEvent[] {
   const pool = (EVENTS[channel] ?? []).filter(
     (ev) => !(renderSold && ev.title === RENDER_SOLD_TITLE)
   );
-  return shuffle(pool).slice(0, count);
+  const forcedLastEvent = pool.find((ev) => ev.forceAsLast);
+  if (!forcedLastEvent) {
+    return shuffle(pool).slice(0, count);
+  }
+
+  const selectable = pool.filter((ev) => ev !== forcedLastEvent);
+  const selected = shuffle(selectable).slice(0, Math.max(0, count - 1));
+  return [...selected, forcedLastEvent];
 }
 
 function buildOffers(current: Channel, isFirst: boolean, renderSold = false, excludedChannel: Channel | null = null): Channel[] {
@@ -770,6 +878,7 @@ const INIT: GameState = {
   seasonAccum: { followers: 0 },
   isFirstMarket: true,
   renderSold: false,
+  usedFajenseRivals: [],
   excludedChannel: null,
 };
 
@@ -1360,15 +1469,20 @@ export default function App() {
   }, []);
 
   const handleChooseChannel = useCallback((channel: Channel) => {
-    setGs((s) => ({
-      ...s,
-      currentChannel: channel,
-      phase: "event",
-      eventIndex: 0,
-      currentEvents: pickEvents(channel, EVENTS_PER_SEASON, s.renderSold),
-      seasonAccum: { followers: 0 },
-      isFirstMarket: false,
-    }));
+    setGs((s) => {
+      const pickedEvents = pickEvents(channel, EVENTS_PER_SEASON, s.renderSold);
+      const { events, usedRivals } = applyEventVariables(pickedEvents, s.usedFajenseRivals);
+      return {
+        ...s,
+        currentChannel: channel,
+        phase: "event",
+        eventIndex: 0,
+        currentEvents: events,
+        seasonAccum: { followers: 0 },
+        isFirstMarket: false,
+        usedFajenseRivals: usedRivals,
+      };
+    });
   }, []);
 
   const handleChooseOption = useCallback((idx: number) => {
