@@ -30,6 +30,8 @@ type Channel =
 
 interface StatDelta {
   followers: number;
+  money?: number;
+  reputation?: number;
   message: string;
   specialOutcome?: "forcedTransfer";
 }
@@ -68,6 +70,7 @@ interface GameState {
   eventIndex: number;
   currentChannel: Channel;
   followers: number;
+  reputation: number;
   careerHistory: CareerEntry[];
   currentEvents: GameEvent[];
   lastResult: LastResult | null;
@@ -78,6 +81,7 @@ interface GameState {
 }
 
 const EVENTS_PER_SEASON = 4;
+const SEASONS = 10;
 
 // ─── Channel Config ───────────────────────────────────────────────────────────
 
@@ -872,6 +876,7 @@ const INIT: GameState = {
   eventIndex: 0,
   currentChannel: "ORTERIX",
   followers: 5200,
+  reputation: 50,
   careerHistory: [],
   currentEvents: [],
   lastResult: null,
@@ -935,7 +940,7 @@ function HUD({ gs }: { gs: GameState }) {
 
         {/* Season dots */}
         <div className="flex items-center gap-1 shrink-0">
-          {Array.from({ length: 12 }, (_, i) => (
+          {Array.from({ length: SEASONS }, (_, i) => (
             <div key={i} className="rounded-full transition-all duration-300"
               style={{
                 width: i === gs.season - 1 ? 8 : 5,
@@ -944,13 +949,16 @@ function HUD({ gs }: { gs: GameState }) {
                 border: i === gs.season - 1 ? `1px solid ${ch.color}` : "none",
               }} />
           ))}
-          <span className="ml-1 font-mono text-xs" style={{ color: "#5050a0" }}>T{gs.season}/12</span>
+          <span className="ml-1 font-mono text-xs" style={{ color: "#5050a0" }}>T{gs.season}/{SEASONS}</span>
         </div>
 
         {/* Stats */}
         <div className="flex items-center gap-5 shrink-0">
           <div className="text-center">
             <p className="font-mono text-xs" style={{ color: "#7070a0" }}>👥 {fmt(gs.followers)}</p>
+          </div>
+          <div className="text-center">
+            <p className="font-mono text-xs" style={{ color: "#7070a0" }}>🏅 {gs.reputation}</p>
           </div>
         </div>
       </div>
@@ -1218,6 +1226,7 @@ function ScreenEventResult({ gs, onContinue }: { gs: GameState; onContinue: () =
   const isForced = r.delta.specialOutcome === "forcedTransfer";
   const consequences = [
     { icon: "👥", label: "Seguidores", value: r.delta.followers },
+    ...(r.delta.reputation ? [{ icon: "🏅", label: "Reputación", value: r.delta.reputation }] : []),
   ];
 
   return (
@@ -1289,7 +1298,7 @@ function ScreenEventResult({ gs, onContinue }: { gs: GameState; onContinue: () =
 function ScreenSeasonSummary({ gs, onContinue }: { gs: GameState; onContinue: () => void }) {
   const ch = CHANNELS[gs.currentChannel] ?? FALLBACK_CHANNEL;
   const passive = ch.passiveMoney;
-  const isLast = gs.season === 12;
+  const isLast = gs.season === SEASONS;
   const isMarket = !isLast;
   const nextLabel = isLast ? "Ver resumen final →" : "Ir al Mercado de Pases →";
 
@@ -1360,7 +1369,7 @@ function ScreenGameOver({ gs }: { gs: GameState }) {
       <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}
         className="max-w-lg w-full flex flex-col gap-7 relative z-10 mt-4">
         <div className="text-center">
-          <p className="font-mono text-xs tracking-[0.3em] mb-2 uppercase" style={{ color: "#7070a0" }}>Fin de Carrera · 12 Temporadas</p>
+          <p className="font-mono text-xs tracking-[0.3em] mb-2 uppercase" style={{ color: "#7070a0" }}>Fin de Carrera · {SEASONS} Temporadas</p>
           {gs.streamerName && (
             <p className="font-black text-2xl mb-1" style={{ fontFamily: "'Barlow Condensed', sans-serif", color: "#8080b0" }}>
               {gs.streamerName.toUpperCase()}
@@ -1457,6 +1466,7 @@ export default function App() {
 
   const applyDelta = (delta: StatDelta, s: GameState) => ({
     followers: Math.max(0, s.followers + delta.followers),
+    reputation: Math.min(100, Math.max(0, s.reputation + (delta.reputation ?? 0))),
     seasonAccum: {
       followers: s.seasonAccum.followers + delta.followers,
     },
@@ -1504,10 +1514,10 @@ export default function App() {
         const idx = hist.findIndex((e) => e.channel === s.currentChannel);
         if (idx >= 0) hist[idx] = { ...hist[idx], seasons: hist[idx].seasons + 1 };
         else hist.push({ channel: s.currentChannel, seasons: 1 });
-        const nextSeason = Math.min(s.season + 1, 13);
+        const nextSeason = Math.min(s.season + 1, SEASONS + 1);
         // Exclude the channel that just ejected the player from future market offers
         const excluded = s.currentChannel;
-        if (s.season >= 12) {
+        if (s.season >= SEASONS) {
           try { localStorage.setItem("streamero.excludedChannel", excluded); } catch (e) {}
           return { ...s, careerHistory: hist, renderSold: true, excludedChannel: excluded, phase: "gameOver" };
         }
@@ -1527,7 +1537,7 @@ export default function App() {
       if (idx >= 0) hist[idx] = { ...hist[idx], seasons: hist[idx].seasons + 1 };
       else hist.push({ channel: s.currentChannel, seasons: 1 });
 
-      if (s.season >= 12) return { ...s, careerHistory: hist, phase: "gameOver" };
+      if (s.season >= SEASONS) return { ...s, careerHistory: hist, phase: "gameOver" };
 
       const nextSeason = s.season + 1;
       return { ...s, season: nextSeason, careerHistory: hist, phase: "transferMarket", isFirstMarket: false };
