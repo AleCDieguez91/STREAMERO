@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>STREAMERO — Modo Carrera</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- HUD fijo: visible durante el juego, oculto en intro/naming/gameover -->
+  <div id="hud" class="hud hidden" role="banner" aria-label="Estadísticas del juego">
+    <div class="hud-inner">
+
+      <div class="hud-left">
+        <span class="hud-brand">STREAMERO</span>
+        <span class="hud-sep">|</span>
+        <span id="hud-channel" class="hud-channel"></span>
+        <span id="hud-name" class="hud-name"></span>
+      </div>
+
+      <!-- Puntos de progreso de temporadas (1–12) -->
+      <div id="hud-seasons" class="hud-seasons" aria-label="Progreso de temporadas"></div>
+
+      <div class="hud-right">
+        <span id="hud-followers" class="hud-stat" title="Seguidores">👥 <span></span></span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Contenedor principal: el JS inyecta el HTML de cada pantalla aquí -->
+  <main id="screen" class="screen" role="main" aria-live="polite"></main>
+
+  <script src="script.js" charset="utf-8"></script>
+</body>
+</html>
