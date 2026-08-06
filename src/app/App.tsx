@@ -11,6 +11,7 @@ import ruzuLogo from "../../assets/logos/ruzu.png";
 import algaEventsMd from "../../assets/docs/EVENTS/ALGA.md?raw";
 import orterixEventsMd from "../../assets/docs/EVENTS/ORTERIX.md?raw";
 import renderEventsMd from "../../assets/docs/EVENTS/RENDER.md?raw";
+import ruzuEventsMd from "../../assets/docs/EVENTS/RUZU.md?raw";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -214,6 +215,62 @@ function ch(name: Channel): ChannelInfo {
 
 // ─── Events ───────────────────────────────────────────────────────────────────
 
+function parseConsequenceText(text: string): StatDelta[] {
+  return Array.from(text.matchAll(/([+-]?\d+(?:[.,]\d+)?)([kK])?(?:\s*([A-Za-zÁÉÍÓÚáéíóú]+))?/g))
+    .map((match) => {
+      const rawValue = match[1].replace(",", ".");
+      let value = Number.parseFloat(rawValue);
+      const kSuffix = Boolean(match[2]);
+      const unit = (match[3] ?? "").toLowerCase();
+      if (kSuffix) value = value * 1000;
+      if (unit.includes("reput")) return { followers: 0, reputation: value, message: "" };
+      return { followers: value, reputation: 0, message: "" };
+    });
+}
+
+function combineConsequences(parts: StatDelta[]): StatDelta {
+  return parts.reduce((acc, part) => ({
+    followers: acc.followers + (part.followers ?? 0),
+    reputation: acc.reputation + (part.reputation ?? 0),
+    message: acc.message,
+  }), { followers: 0, reputation: 0, message: "" });
+}
+
+function extractOutcomeData(block: string, outcomeLabel: "SALE BIEN" | "SALE MAL") {
+  const lines = block.split(/\r?\n/).map((line) => line.trim());
+  const headerIndex = lines.findIndex((line) => new RegExp(`^${outcomeLabel}:`, "i").test(line));
+  if (headerIndex < 0) {
+    return { message: "", consequences: { followers: 0, reputation: 0, message: "" } };
+  }
+
+  const headerText = lines[headerIndex].replace(new RegExp(`^${outcomeLabel}:\\s*`, "i"), "").trim();
+  const narrativeLines: string[] = [];
+  const consequenceLines: string[] = [];
+  let inConsequences = false;
+
+  for (let index = headerIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!line) continue;
+    if (/^CONSECUENCIAS:/i.test(line)) {
+      inConsequences = true;
+      const rest = line.replace(/^CONSECUENCIAS:\s*/i, "").trim();
+      if (rest) consequenceLines.push(rest);
+      continue;
+    }
+    if (/^SALE (BIEN|MAL):/i.test(line)) break;
+    if (inConsequences) consequenceLines.push(line);
+    else narrativeLines.push(line);
+  }
+
+  const message = [headerText, ...narrativeLines].filter(Boolean).join(" ").trim();
+  const consequences = combineConsequences(parseConsequenceText(consequenceLines.join("\n")));
+  return { message, consequences };
+}
+
+function normalizeOptionText(text: string): string {
+  return text.trim().replace(/^[A-Z]\s*[:.\-–—]\s*/i, "").trim();
+}
+
 function parseAutomaticEventsFromMarkdown(markdown: string): GameEvent[] {
   const sections = markdown.split(/\n\s*EVENTO:/i).filter(Boolean);
   return sections.flatMap((section) => {
@@ -246,17 +303,123 @@ function parseAutomaticEventsFromMarkdown(markdown: string): GameEvent[] {
     }
 
     const consequences = consequenceLines
-      .map((line) => line.match(/([+-]?\d+(?:[.,]\d+)?)(?:\s*([A-Za-zÁÉÍÓÚáéíóú]+))?/))
+      .map((line) => line.match(/([+-]?\d+(?:[.,]\d+)?)([kK])?(?:\s*([A-Za-zÁÉÍÓÚáéíóú]+))?/))
       .filter((match): match is RegExpMatchArray => Boolean(match))
       .map((match) => {
         const rawValue = match[1].replace(",", ".");
-        const value = Number.parseFloat(rawValue);
-        const label = (match[2] ?? "").toLowerCase();
-        if (label.includes("reput")) return { followers: 0, reputation: value, message: "Se aplican las consecuencias inmediatamente." };
-        return { followers: value, reputation: 0, message: "Se aplican las consecuencias inmediatamente." };
+        let value = Number.parseFloat(rawValue);
+        const kSuffix = Boolean(match[2]);
+        const unit = (match[3] ?? "").toLowerCase();
+        if (kSuffix) value = value * 1000;
+        if (unit.includes("reput")) return { followers: 0, reputation: value, message: "" };
+        // default to followers when unit is ambiguous or 'seguidores'
+        return { followers: value, reputation: 0, message: "" };
       });
 
     return [{ title, description, type: "automatic", consequences, appearance }];
+  });
+}
+
+function parseEventsFromMarkdown(markdown: string): GameEvent[] {
+  const sections = markdown.split(/\n\s*EVENTO:/i).filter(Boolean);
+  return sections.flatMap((section) => {
+    const normalized = section.trim();
+    if (!normalized) return [];
+    const lines = normalized.split(/\r?\n/).map((l) => l.trim());
+
+    const title = lines.find((line) => /^T[ÍI]TULO:/i.test(line))?.replace(/^T[ÍI]TULO:\s*/i, "")?.trim() ?? "Evento";
+    const description = lines.find((line) => /^DESCRIPCI.|^DESCRIPCIÓN:/i.test(line))
+      ?.replace(/^DESCRIPCI.:\s*/i, "")
+      ?.replace(/^DESCRIPCIÓN:\s*/i, "") ?? "";
+
+    const appearanceLine = lines.find((line) => /^APARICION:/i.test(line));
+    const appearance = appearanceLine?.replace(/^APARICION:\s*/i, "").trim().toUpperCase() === "UNA_VEZ"
+      ? "UNA_VEZ"
+      : undefined;
+
+    const typeLine = lines.find((line) => /^TIPO:/i.test(line));
+    const type = typeLine ? (/(AUTOMATICO)/i.test(typeLine) ? "automatic" : undefined) : undefined;
+
+    // Parse options (OPCIÓN A / OPCION B / OPCIÓN C ...)
+    const optionBlocks: string[] = [];
+    let currentOpt: string[] | null = null;
+    for (const line of lines) {
+      if (/^OPCI(?:ÓN|ON)\s+[A-Z]/i.test(line)) {
+        if (currentOpt) optionBlocks.push(currentOpt.join('\n'));
+        currentOpt = [line];
+        continue;
+      }
+      if (currentOpt) currentOpt.push(line);
+    }
+    if (currentOpt) optionBlocks.push(currentOpt.join('\n'));
+
+    const options: EventOption[] = optionBlocks.map((block) => {
+      const bLines = block.split(/\r?\n/).map((l) => l.trim());
+      const header = bLines[0] ?? "";
+      const rawText = header.replace(/^OPCI(?:ÓN|ON):?/i, "").trim();
+      const text = normalizeOptionText(rawText) || "Opción";
+      const subtitle = (bLines.find((l) => /^SUBT[ÍI]TULO:/i.test(l)) ?? "").replace(/^SUBT[ÍI]TULO:\s*/i, "").trim();
+      const probLine = bLines.find((l) => /^PROBABILIDAD:/i.test(l));
+      const prob = probLine ? Number((probLine.replace(/^PROBABILIDAD:\s*/i, "").replace(/%/g, "").trim())) / 100 : 0.5;
+
+      const successOutcome = extractOutcomeData(block, "SALE BIEN");
+      const failureOutcome = extractOutcomeData(block, "SALE MAL");
+
+      const successObj = {
+        ...successOutcome.consequences,
+        message: successOutcome.message,
+      };
+      const failureObj = {
+        ...failureOutcome.consequences,
+        message: failureOutcome.message,
+      };
+
+      return {
+        text: text,
+        detail: subtitle,
+        successChance: isNaN(prob) ? 0.5 : prob,
+        success: successObj,
+        failure: failureObj,
+      } as EventOption;
+    });
+
+    // Parse consequences for automatic events (if any)
+    const consequenceLines: string[] = [];
+    let inConsequences = false;
+    for (const line of lines) {
+      if (!inConsequences && /^CONSECUENCIAS:/i.test(line)) {
+        inConsequences = true;
+        continue;
+      }
+      if (!inConsequences) continue;
+      if (/^(EVENTO:|TIPO:|T[ÍI]TULO:|DESCRIPCIÓN:|DESCRIPCION:|CANAL:|RAREZA:|OPCIÓN|OPCION)/i.test(line)) break;
+      if (!line || line === '…') continue;
+      consequenceLines.push(line);
+    }
+
+    const consequences = consequenceLines
+      .map((line) => line.match(/([+-]?\d+(?:[.,]\d+)?)([kK])?(?:\s*([A-Za-zÁÉÍÓÚáéíóú]+))?/))
+      .filter((match): match is RegExpMatchArray => Boolean(match))
+      .map((match) => {
+        const rawValue = match[1].replace(",", ".");
+        let value = Number.parseFloat(rawValue);
+        const kSuffix = Boolean(match[2]);
+        const unit = (match[3] ?? "").toLowerCase();
+        if (kSuffix) value = value * 1000;
+        if (unit.includes("reput")) return { followers: 0, reputation: value, message: "" };
+        return { followers: value, reputation: 0, message: "" };
+      });
+
+    const ev: GameEvent = {
+      title,
+      description,
+      type,
+      options: options.length ? options : undefined,
+      consequences: consequences.length ? consequences : undefined,
+      appearance,
+    };
+
+    return [ev];
   });
 }
 
@@ -264,7 +427,37 @@ const DOC_EVENTS: Partial<Record<Channel, GameEvent[]>> = {
   ALGA: parseAutomaticEventsFromMarkdown(algaEventsMd),
   ORTERIX: parseAutomaticEventsFromMarkdown(orterixEventsMd),
   RENDER: parseAutomaticEventsFromMarkdown(renderEventsMd),
+  "RUZU TV": parseEventsFromMarkdown(ruzuEventsMd),
 };
+
+// Reload markdown-based automatic events at runtime by fetching the raw
+// files and reparsing them. We do an in-place update of `DOC_EVENTS` so
+// existing selection logic that reads `DOC_EVENTS` does not need to be
+// changed.
+async function refreshDocEvents() {
+  const mapping: Record<string, string> = {
+    ALGA: "../../assets/docs/EVENTS/ALGA.md",
+    ORTERIX: "../../assets/docs/EVENTS/ORTERIX.md",
+    RENDER: "../../assets/docs/EVENTS/RENDER.md",
+    "RUZU TV": "../../assets/docs/EVENTS/RUZU.md",
+  };
+
+  for (const [channel, relPath] of Object.entries(mapping)) {
+    try {
+      const url = new URL(relPath, import.meta.url).href;
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const text = await res.text();
+      const parsed = channel === "RUZU TV" ? parseEventsFromMarkdown(text) : parseAutomaticEventsFromMarkdown(text);
+      // mutate DOC_EVENTS in-place so pickEvents and other logic see updates
+      (DOC_EVENTS as any)[channel] = parsed;
+    } catch (err) {
+      // keep silent in production but log for debugging
+      // eslint-disable-next-line no-console
+      console.error("refreshDocEvents failed for", channel, err);
+    }
+  }
+}
 
 const QUERATINA_SONG_TITLE = "La Canción de la Estrella de Mar";
 
@@ -1364,22 +1557,27 @@ function ScreenEvent({ gs, onChoose, onContinueAutomatic }: { gs: GameState; onC
               style={{ background: "rgba(15,15,30,0.65)", border: "1px solid rgba(124,58,237,0.15)" }}>
               <p className="text-xs font-mono tracking-widest uppercase mb-3" style={{ color: "#7070a0" }}>Consecuencias</p>
               {(ev.consequences ?? []).length > 0 && (
-                <div className="flex flex-wrap items-center gap-4">
-                  {(ev.consequences ?? []).flatMap((delta, deltaIndex) => {
-                    const items: Array<{ key: string; icon: string; value: number }> = [];
-                    if (delta.followers !== undefined) {
-                      items.push({ key: `followers-${deltaIndex}`, icon: "👥", value: delta.followers });
-                    }
-                    if (delta.reputation !== undefined) {
-                      items.push({ key: `reputation-${deltaIndex}`, icon: "🏅", value: delta.reputation });
-                    }
-                    return items;
-                  }).map((item) => (
-                    <div key={item.key} className="flex items-center gap-2">
-                      <span className="text-sm">{item.icon}</span>
-                      <Delta v={item.value} />
-                    </div>
-                  ))}
+                <div className="flex flex-col gap-4">
+                  <div className="text-sm leading-relaxed" style={{ color: "#c0c0e0" }}>
+                    {(ev.consequences ?? []).find((delta) => delta.message)?.message || ""}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-4">
+                    {(ev.consequences ?? []).flatMap((delta, deltaIndex) => {
+                      const items: Array<{ key: string; icon: string; value: number }> = [];
+                      if (delta.followers !== undefined) {
+                        items.push({ key: `followers-${deltaIndex}`, icon: "👥", value: delta.followers });
+                      }
+                      if (delta.reputation !== undefined) {
+                        items.push({ key: `reputation-${deltaIndex}`, icon: "🏅", value: delta.reputation });
+                      }
+                      return items;
+                    }).map((item) => (
+                      <div key={item.key} className="flex items-center gap-2">
+                        <span className="text-sm">{item.icon}</span>
+                        <Delta v={item.value} />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -1403,7 +1601,7 @@ function ScreenEvent({ gs, onChoose, onContinueAutomatic }: { gs: GameState; onC
                     {String.fromCharCode(65 + i)}
                   </span>
                   <div>
-                    <p className="font-semibold text-sm" style={{ color: "#eaeaff" }}>{opt.text}</p>
+                    <p className="font-semibold text-sm" style={{ color: "#eaeaff" }}>{normalizeOptionText(opt.text)}</p>
                     <p className="text-xs mt-0.5" style={{ color: "#7070a0" }}>{opt.detail}</p>
                   </div>
                 </div>
@@ -1454,7 +1652,9 @@ function ScreenEventResult({ gs, onContinue }: { gs: GameState; onContinue: () =
         <div className="w-full rounded-2xl p-6 flex flex-col gap-5"
           style={{ background: "rgba(15,15,30,0.85)",
             border: `1px solid ${isForced ? "rgba(159,18,57,0.4)" : ok ? "rgba(74,222,128,0.25)" : "rgba(248,113,113,0.25)"}` }}>
-          <p className="text-sm leading-relaxed text-center" style={{ color: "#c0c0e0" }}>{r.delta.message}</p>
+          {r.delta.message ? (
+            <p className="text-sm leading-relaxed text-center" style={{ color: "#c0c0e0" }}>{r.delta.message}</p>
+          ) : null}
 
           {isForced && (
             <div className="px-4 py-3 rounded-xl text-xs font-mono text-center"
@@ -1661,6 +1861,15 @@ export default function App() {
     }
   }, []);
 
+  // Re-read markdown event files at startup so newly added automatic
+  // events become available without changing the parser or selection logic.
+  useEffect(() => {
+    // fire-and-forget; any errors are logged inside refreshDocEvents
+    refreshDocEvents();
+  }, []);
+
+  
+
   const applyDelta = (delta: StatDelta, s: GameState) => ({
     followers: Math.max(0, s.followers + delta.followers),
     reputation: Math.min(100, Math.max(0, s.reputation + (delta.reputation ?? 0))),
@@ -1701,6 +1910,18 @@ export default function App() {
       };
     });
   }, []);
+
+  // Dev helper: allow forcing a channel selection from the browser console
+  useEffect(() => {
+    try {
+      (window as any).forceSelectChannel = (channel: Channel) => handleChooseChannel(channel);
+    } catch (e) {
+      // ignore
+    }
+    return () => {
+      try { delete (window as any).forceSelectChannel; } catch (e) {}
+    };
+  }, [handleChooseChannel]);
 
   const handleChooseOption = useCallback((idx: number) => {
     setGs((s) => {
