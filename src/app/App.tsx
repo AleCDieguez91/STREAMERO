@@ -7,6 +7,9 @@ import futupopLogo from "../../assets/logos/futupop.png";
 import orterixLogo from "../../assets/logos/orterix.png";
 import renderLogo from "../../assets/logos/render.png";
 import ruzuLogo from "../../assets/logos/ruzu.png";
+import algaEventsMd from "../../assets/docs/EVENTS/ALGA.md?raw";
+import orterixEventsMd from "../../assets/docs/EVENTS/ORTERIX.md?raw";
+import renderEventsMd from "../../assets/docs/EVENTS/RENDER.md?raw";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,6 +29,7 @@ type Channel =
   | "RUZU TV"
   | "RENDER"
   | "CARANCHO"
+  | "FUTUPOP"
   | "UN POCO DE BOCHINCHE";
 
 interface StatDelta {
@@ -47,7 +51,10 @@ interface EventOption {
 interface GameEvent {
   title: string;
   description: string;
-  options: EventOption[];
+  options?: EventOption[];
+  type?: "normal" | "automatic";
+  consequences?: StatDelta[];
+  appearance?: "UNA_VEZ";
   forceAsLast?: boolean;
 }
 
@@ -77,6 +84,8 @@ interface GameState {
   seasonAccum: { followers: number };
   isFirstMarket: boolean;
   renderSold: boolean;
+  usedFajenseRivals: string[];
+  usedEventKeys: string[];
   excludedChannel?: Channel | null;
 }
 
@@ -191,6 +200,58 @@ function ch(name: Channel): ChannelInfo {
 }
 
 // ─── Events ───────────────────────────────────────────────────────────────────
+
+function parseAutomaticEventsFromMarkdown(markdown: string): GameEvent[] {
+  const sections = markdown.split(/\n\s*EVENTO:/i).filter(Boolean);
+  return sections.flatMap((section) => {
+    const normalized = section.trim();
+    if (!normalized) return [];
+    const lines = normalized.split(/\r?\n/).map((line) => line.trim());
+    const typeLine = lines.find((line) => /^TIPO:/i.test(line));
+    if (!typeLine || !/AUTOMATICO/i.test(typeLine)) return [];
+
+    const title = lines.find((line) => /^T[ÍI]TULO:/i.test(line))?.replace(/^T[ÍI]TULO:\s*/i, "") ?? "Evento Automático";
+    const description = lines.find((line) => /^DESCRIPCIÓN:/i.test(line) || /^DESCRIPCION:/i.test(line))
+      ?.replace(/^DESCRIPCIÓN:\s*/i, "")
+      ?.replace(/^DESCRIPCION:\s*/i, "") ?? "";
+    const appearanceLine = lines.find((line) => /^APARICION:/i.test(line));
+    const appearance = appearanceLine?.replace(/^APARICION:\s*/i, "").trim().toUpperCase() === "UNA_VEZ"
+      ? "UNA_VEZ"
+      : undefined;
+
+    const consequenceLines: string[] = [];
+    let inConsequences = false;
+    for (const line of lines) {
+      if (!inConsequences && /^CONSECUENCIAS:/i.test(line)) {
+        inConsequences = true;
+        continue;
+      }
+      if (!inConsequences) continue;
+      if (/^(EVENTO:|TIPO:|T[ÍI]TULO:|DESCRIPCIÓN:|DESCRIPCION:|CANAL:|RAREZA:|OPCIÓN|OPCION)/i.test(line)) break;
+      if (!line || line === "…") continue;
+      consequenceLines.push(line);
+    }
+
+    const consequences = consequenceLines
+      .map((line) => line.match(/([+-]?\d+(?:[.,]\d+)?)(?:\s*([A-Za-zÁÉÍÓÚáéíóú]+))?/))
+      .filter((match): match is RegExpMatchArray => Boolean(match))
+      .map((match) => {
+        const rawValue = match[1].replace(",", ".");
+        const value = Number.parseFloat(rawValue);
+        const label = (match[2] ?? "").toLowerCase();
+        if (label.includes("reput")) return { followers: 0, reputation: value, message: "Se aplican las consecuencias inmediatamente." };
+        return { followers: value, reputation: 0, message: "Se aplican las consecuencias inmediatamente." };
+      });
+
+    return [{ title, description, type: "automatic", consequences, appearance }];
+  });
+}
+
+const DOC_EVENTS: Partial<Record<Channel, GameEvent[]>> = {
+  ALGA: parseAutomaticEventsFromMarkdown(algaEventsMd),
+  ORTERIX: parseAutomaticEventsFromMarkdown(orterixEventsMd),
+  RENDER: parseAutomaticEventsFromMarkdown(renderEventsMd),
+};
 
 const EVENTS: Record<Channel, GameEvent[]> = {
   ORTERIX: [
@@ -544,6 +605,14 @@ const EVENTS: Record<Channel, GameEvent[]> = {
 
   RENDER: [
     {
+      type: "automatic",
+      title: "Brote de Tuberculosis en el Canal",
+      description: "Un brote de tuberculosis en el estudio se expande sin control. Te contagiás. Perdés un mes de programa, tus números tardan en recuperarse y varios invitados que tenías planeados se dan de baja por tu ausencia.",
+      consequences: [
+        { followers: -500, reputation: -1, message: "Tu salud y la del canal se resienten. El estudio queda en pausa y varios planes se cancelan." },
+      ],
+    },
+    {
       title: "Entrevista a Político Polémico",
       description: "RENDER consiguió al político más debatido del momento. Tomás Report te confía la entrevista.",
       options: [
@@ -798,12 +867,16 @@ function substituteEventPlaceholders(ev: GameEvent, vars: Record<string, string>
     ...ev,
     title: replace(ev.title),
     description: replace(ev.description),
-    options: ev.options.map((opt) => ({
+    options: (ev.options ?? []).map((opt) => ({
       ...opt,
       text: replace(opt.text),
       detail: replace(opt.detail),
       success: { ...opt.success, message: replace(opt.success.message) },
       failure: { ...opt.failure, message: replace(opt.failure.message) },
+    })),
+    consequences: (ev.consequences ?? []).map((delta) => ({
+      ...delta,
+      message: replace(delta.message),
     })),
   };
 }
@@ -821,10 +894,21 @@ function applyEventVariables(events: GameEvent[], usedRivals: string[]) {
 
 const RENDER_SOLD_TITLE = "⚡ RENDER FUE VENDIDO";
 
-function pickEvents(channel: Channel, count: number, renderSold = false): GameEvent[] {
-  const pool = (EVENTS[channel] ?? []).filter(
+function buildEventKey(channel: Channel, event: GameEvent) {
+  return `${channel}::${event.title}::${event.description}`;
+}
+
+function pickEvents(channel: Channel, count: number, renderSold = false, usedEventKeys: string[] = []): GameEvent[] {
+  const docPool = (DOC_EVENTS[channel] ?? []).filter(
     (ev) => !(renderSold && ev.title === RENDER_SOLD_TITLE)
   );
+  const basePool = (EVENTS[channel] ?? []).filter(
+    (ev) => !(renderSold && ev.title === RENDER_SOLD_TITLE)
+  );
+  const pool = [...docPool, ...basePool].filter((ev) => {
+    if (ev.appearance !== "UNA_VEZ") return true;
+    return !usedEventKeys.includes(buildEventKey(channel, ev));
+  });
   const forcedLastEvent = pool.find((ev) => ev.forceAsLast);
   if (!forcedLastEvent) {
     return shuffle(pool).slice(0, count);
@@ -884,6 +968,7 @@ const INIT: GameState = {
   isFirstMarket: true,
   renderSold: false,
   usedFajenseRivals: [],
+  usedEventKeys: [],
   excludedChannel: null,
 };
 
@@ -1138,10 +1223,11 @@ function ScreenTransferMarket({ gs, onChoose }: { gs: GameState; onChoose: (ch: 
   );
 }
 
-function ScreenEvent({ gs, onChoose }: { gs: GameState; onChoose: (idx: number) => void }) {
+function ScreenEvent({ gs, onChoose, onContinueAutomatic }: { gs: GameState; onChoose: (idx: number) => void; onContinueAutomatic: () => void }) {
   const ev = gs.currentEvents[gs.eventIndex];
   const ch = CHANNELS[gs.currentChannel] ?? FALLBACK_CHANNEL;
   const isSpecial = ev.title.startsWith("⚡");
+  const isAutomatic = ev.type === "automatic";
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 pt-20 pb-12 relative overflow-hidden">
@@ -1194,26 +1280,59 @@ function ScreenEvent({ gs, onChoose }: { gs: GameState; onChoose: (idx: number) 
           <p className="text-sm leading-relaxed" style={{ color: "#9090b8" }}>{ev.description}</p>
         </div>
 
-        <div className="flex flex-col gap-3">
-          <p className="text-xs font-mono tracking-widest uppercase" style={{ color: "#7070a0" }}>¿Qué decidís?</p>
-          {ev.options.map((opt, i) => (
-            <motion.button key={i} onClick={() => onChoose(i)}
-              whileHover={{ scale: 1.02, x: 5 }} whileTap={{ scale: 0.98 }}
-              className="text-left p-5 rounded-xl transition-all duration-200"
-              style={{ background: "rgba(15,15,30,0.6)", border: "1px solid rgba(124,58,237,0.15)" }}>
-              <div className="flex items-start gap-4">
-                <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 mt-0.5"
-                  style={{ background: `${ch.color}28`, color: ch.accent, fontFamily: "'Barlow Condensed', sans-serif" }}>
-                  {String.fromCharCode(65 + i)}
-                </span>
-                <div>
-                  <p className="font-semibold text-sm" style={{ color: "#eaeaff" }}>{opt.text}</p>
-                  <p className="text-xs mt-0.5" style={{ color: "#7070a0" }}>{opt.detail}</p>
+        {isAutomatic ? (
+          <div className="flex flex-col gap-3">
+            <div className="rounded-2xl p-5"
+              style={{ background: "rgba(15,15,30,0.65)", border: "1px solid rgba(124,58,237,0.15)" }}>
+              <p className="text-xs font-mono tracking-widest uppercase mb-3" style={{ color: "#7070a0" }}>Consecuencias</p>
+              {(ev.consequences ?? []).length > 0 && (
+                <div className="flex flex-wrap items-center gap-4">
+                  {(ev.consequences ?? []).flatMap((delta, deltaIndex) => {
+                    const items: Array<{ key: string; icon: string; value: number }> = [];
+                    if (delta.followers !== undefined) {
+                      items.push({ key: `followers-${deltaIndex}`, icon: "👥", value: delta.followers });
+                    }
+                    if (delta.reputation !== undefined) {
+                      items.push({ key: `reputation-${deltaIndex}`, icon: "🏅", value: delta.reputation });
+                    }
+                    return items;
+                  }).map((item) => (
+                    <div key={item.key} className="flex items-center gap-2">
+                      <span className="text-sm">{item.icon}</span>
+                      <Delta v={item.value} />
+                    </div>
+                  ))}
                 </div>
-              </div>
+              )}
+            </div>
+            <motion.button onClick={onContinueAutomatic} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+              className="w-full py-4 rounded-xl font-black text-base tracking-widest uppercase"
+              style={{ fontFamily: "'Barlow Condensed', sans-serif", background: "linear-gradient(135deg, #7c3aed, #a855f7)", color: "#fff" }}>
+              CONTINUAR
             </motion.button>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <p className="text-xs font-mono tracking-widest uppercase" style={{ color: "#7070a0" }}>¿Qué decidís?</p>
+            {(ev.options ?? []).map((opt, i) => (
+              <motion.button key={i} onClick={() => onChoose(i)}
+                whileHover={{ scale: 1.02, x: 5 }} whileTap={{ scale: 0.98 }}
+                className="text-left p-5 rounded-xl transition-all duration-200"
+                style={{ background: "rgba(15,15,30,0.6)", border: "1px solid rgba(124,58,237,0.15)" }}>
+                <div className="flex items-start gap-4">
+                  <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 mt-0.5"
+                    style={{ background: `${ch.color}28`, color: ch.accent, fontFamily: "'Barlow Condensed', sans-serif" }}>
+                    {String.fromCharCode(65 + i)}
+                  </span>
+                  <div>
+                    <p className="font-semibold text-sm" style={{ color: "#eaeaff" }}>{opt.text}</p>
+                    <p className="text-xs mt-0.5" style={{ color: "#7070a0" }}>{opt.detail}</p>
+                  </div>
+                </div>
+              </motion.button>
+            ))}
+          </div>
+        )}
       </motion.div>
     </div>
   );
@@ -1472,6 +1591,8 @@ export default function App() {
     },
   });
 
+  const applyDeltas = (deltas: StatDelta[], s: GameState) => deltas.reduce((acc, delta) => ({ ...acc, ...applyDelta(delta, acc) }), s);
+
   const handleIntroNext = useCallback(() => setGs((s) => ({ ...s, phase: "naming" })), []);
 
   const handleNamingConfirm = useCallback((name: string) => {
@@ -1480,8 +1601,15 @@ export default function App() {
 
   const handleChooseChannel = useCallback((channel: Channel) => {
     setGs((s) => {
-      const pickedEvents = pickEvents(channel, EVENTS_PER_SEASON, s.renderSold);
+      const pickedEvents = pickEvents(channel, EVENTS_PER_SEASON, s.renderSold, s.usedEventKeys);
       const { events, usedRivals } = applyEventVariables(pickedEvents, s.usedFajenseRivals);
+      const nextUsedEventKeys = [...s.usedEventKeys];
+      events.forEach((event) => {
+        if (event.appearance === "UNA_VEZ") {
+          const key = buildEventKey(channel, event);
+          if (!nextUsedEventKeys.includes(key)) nextUsedEventKeys.push(key);
+        }
+      });
       return {
         ...s,
         currentChannel: channel,
@@ -1491,6 +1619,7 @@ export default function App() {
         seasonAccum: { followers: 0 },
         isFirstMarket: false,
         usedFajenseRivals: usedRivals,
+        usedEventKeys: nextUsedEventKeys,
       };
     });
   }, []);
@@ -1498,11 +1627,21 @@ export default function App() {
   const handleChooseOption = useCallback((idx: number) => {
     setGs((s) => {
       const ev = s.currentEvents[s.eventIndex];
-      const opt = ev.options[idx];
+      const opt = ev.options?.[idx];
+      if (!opt) return s;
       const ok = Math.random() < opt.successChance;
       const delta = ok ? opt.success : opt.failure;
       return { ...s, ...applyDelta(delta, s), phase: "eventResult",
         lastResult: { eventTitle: ev.title, optionText: opt.text, wasSuccess: ok, delta } };
+    });
+  }, []);
+
+  const handleAutomaticContinue = useCallback(() => {
+    setGs((s) => {
+      const ev = s.currentEvents[s.eventIndex];
+      const nextState = applyDeltas(ev?.consequences ?? [], s);
+      if (s.eventIndex < EVENTS_PER_SEASON - 1) return { ...nextState, phase: "event", eventIndex: s.eventIndex + 1 };
+      return { ...nextState, phase: "seasonSummary" };
     });
   }, []);
 
@@ -1567,7 +1706,7 @@ export default function App() {
         )}
         {gs.phase === "event" && gs.currentEvents[gs.eventIndex] && (
           <motion.div key={`ev-${gs.season}-${gs.eventIndex}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
-            <ScreenEvent gs={gs} onChoose={handleChooseOption} />
+            <ScreenEvent gs={gs} onChoose={handleChooseOption} onContinueAutomatic={handleAutomaticContinue} />
           </motion.div>
         )}
         {gs.phase === "eventResult" && gs.lastResult && (

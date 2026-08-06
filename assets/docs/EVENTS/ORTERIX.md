@@ -52,6 +52,12 @@ FAJENSE DE MANOS
 
 
 
+TIPO: NORMAL
+
+
+
+
+
 DESCRIPCIÓN:
 
 Azuquita Rodrigues organiza una nueva edición de FAJENSE DE MANOS en el Luna Park.

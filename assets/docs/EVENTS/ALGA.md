@@ -94,7 +94,7 @@ EVENTO: ALGA\_003
 
 CANAL: ALGA
 
-RAREZA: 
+RAREZA:
 
 TÍTULO:  GOLPE DE NOSTALGIA
 
@@ -140,7 +140,7 @@ EVENTO: ALGA\_004
 
 CANAL: ALGA
 
-RAREZA: 
+RAREZA:
 
 TÍTULO:  NUEVA INCORPORACIÓN
 
@@ -170,7 +170,7 @@ PROBABILIDAD: 50%
 
 SALE BIEN: Migue Granate lo entiende y va rotando a la piba por varios programas. Al final se da cuenta que no sirve y la echa.
 
-CONSECUENCIAS: +200 seguidores 
+CONSECUENCIAS: +200 seguidores
 
 SALE MAL: Migue Granate te tilda de mal compañero y mala leche.
 
@@ -188,7 +188,7 @@ CANAL: ALGA
 
 RAREZA:
 
-TÍTULO: LA GUERRA DE LOS BOTS  
+TÍTULO: LA GUERRA DE LOS BOTS
 
 DESCRIPCIÓN: Un canal rival insinúa en redes que ALGA está inflando artificialmente su audiencia. El tema domina las tendencias y todos esperan una respuesta.
 
@@ -223,10 +223,4 @@ CONSECUENCIAS: +1k seguidores
 SALE MAL: Muchos interpretan el silencio como una admisión.
 
 CONSECUENCIAS: -3k seguidores
-
-
-
-
-
-
 
