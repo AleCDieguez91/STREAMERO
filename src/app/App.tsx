@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import algaLogo from "../../assets/logos/alga.png";
 import assLogo from "../../assets/logos/ass.png";
 import caranchoLogo from "../../assets/logos/carancho.png";
+import queratinaLogo from "../../assets/logos/queratina.png";
 import futupopLogo from "../../assets/logos/futupop.png";
 import orterixLogo from "../../assets/logos/orterix.png";
 import renderLogo from "../../assets/logos/render.png";
@@ -29,6 +30,7 @@ type Channel =
   | "RUZU TV"
   | "RENDER"
   | "CARANCHO"
+  | "QUERATINA"
   | "FUTUPOP"
   | "UN POCO DE BOCHINCHE";
 
@@ -177,6 +179,17 @@ const CHANNELS: Record<Channel, ChannelInfo> = {
     passiveMoney: 16,
     color: "#a16207", glow: "rgba(161,98,7,0.35)", accent: "#fde047",
   },
+  QUERATINA: {
+    name: "QUERATINA",
+    shortName: "QUERATINA",
+    logo: queratinaLogo,
+    tagline: "Política, entrevistas y cultura",
+    description: "Debates largos, análisis y entrevistas profundas. Es un canal donde las conversaciones suelen ocupar toda la transmisión.",
+    figure: "Pepe Racinclub",
+    remuneration: 3, reach: 4, demand: "Media",
+    passiveMoney: 13,
+    color: "#1d4ed8", glow: "rgba(29,78,216,0.35)", accent: "#93c5fd",
+  },
   FUTUPOP: {
     name: "FUTUPOP",
     shortName: "FUTUPOP",
@@ -191,7 +204,7 @@ const CHANNELS: Record<Channel, ChannelInfo> = {
 };
 
 const ALL_CHANNELS: Channel[] = [
-  "ORTERIX", "ALGA", "ASS", "RUZU TV", "RENDER", "CARANCHO", "FUTUPOP",
+  "ORTERIX", "ALGA", "ASS", "RUZU TV", "RENDER", "CARANCHO", "QUERATINA", "FUTUPOP",
 ];
 
 const FALLBACK_CHANNEL = CHANNELS["ORTERIX"];
@@ -252,6 +265,8 @@ const DOC_EVENTS: Partial<Record<Channel, GameEvent[]>> = {
   ORTERIX: parseAutomaticEventsFromMarkdown(orterixEventsMd),
   RENDER: parseAutomaticEventsFromMarkdown(renderEventsMd),
 };
+
+const QUERATINA_SONG_TITLE = "La Canción de la Estrella de Mar";
 
 const EVENTS: Record<Channel, GameEvent[]> = {
   ORTERIX: [
@@ -758,6 +773,69 @@ const EVENTS: Record<Channel, GameEvent[]> = {
         { text: "Salir del tema con humor y esquivar", detail: "No querer saber nada.", successChance: 0.64,
           success: { followers: 7000, money: 2, message: "El humor desactivó el momento. El canal respiró aliviado." },
           failure: { followers: -4000, money: 0, message: "El chiste cayó pésimo en un momento serio. Peor el remedio que la enfermedad." } },
+      ],
+    },
+  ],
+
+  QUERATINA: [
+    {
+      title: "Panel Peronista de Alto Voltaje",
+      description: "QUERATINA arma un panel con dirigentes, militantes y periodistas del palo. El tema: la interna del movimiento. Pepe Racinclub te pone a moderar.",
+      options: [
+        { text: "Moderar con mano firme sin tomar partido", detail: "Periodismo por sobre la militancia.", successChance: 0.55,
+          success: { followers: 9000, money: 3, message: "Panel intenso pero ordenado. Te ganaste el respeto de los distintos sectores del movimiento." },
+          failure: { followers: -4000, money: 0, message: "Los panelistas te pasaron por encima. Perdiste el control y el canal quedó expuesto." } },
+        { text: "Sumarte al debate y tomar posición", detail: "Bancar la línea del canal.", successChance: 0.48,
+          success: { followers: 14000, money: 4, message: "Tu posición fue clara y contundente. La militancia te adoptó. El panel fue trending." },
+          failure: { followers: -7000, money: 0, message: "La interna del movimiento te comió. Quedaste en el medio de un fuego cruzado del que no pudiste salir." } },
+      ],
+    },
+    {
+      title: "Entrevista a un Referente del Movimiento",
+      description: "QUERATINA consiguió a una figura histórica del peronismo. Pepe Racinclub te confía la entrevista. La audiencia del canal la espera hace semanas.",
+      options: [
+        { text: "Preguntas críticas, periodismo sin concesiones", detail: "La figura lo merece.", successChance: 0.42,
+          success: { followers: 19000, money: 5, message: "Preguntaste lo que nadie se animaba a preguntar. La entrevista fue histórica para el canal." },
+          failure: { followers: -8000, money: 0, message: "El referente se cerró y la entrevista murió antes de empezar. QUERATINA no te lo perdonó fácil." } },
+        { text: "Entrevista respetuosa y de fondo", detail: "Que el entrevistado se abra solo.", successChance: 0.72,
+          success: { followers: 11000, money: 3, message: "La figura habló como nunca. Momento emotivo que el canal usó durante semanas." },
+          failure: { followers: -2000, money: 0, message: "Correcta pero sin momentos propios. La audiencia esperaba más profundidad." } },
+      ],
+    },
+    {
+      title: "Cobertura del Festival de Cine Nacional",
+      description: "QUERATINA cubre el festival de cine argentino más importante del año. Te mandan a vos a la alfombra roja y a las funciones.",
+      options: [
+        { text: "Análisis cinematográfico serio, película por película", detail: "El cine merece respeto.", successChance: 0.60,
+          success: { followers: 8000, money: 3, message: "Tu cobertura fue la más completa del festival. El ambiente cinéfilo te empezó a seguir." },
+          failure: { followers: -2000, money: 0, message: "El análisis fue demasiado técnico para la audiencia habitual del canal. Los números no acompañaron." } },
+        { text: "Entrevistas al paso en la alfombra roja", detail: "El espectáculo por sobre el análisis.", successChance: 0.65,
+          success: { followers: 12000, money: 4, message: "Los clips de las entrevistas circularon en todos lados. Momento espontáneo que hizo quedar bien al canal." },
+          failure: { followers: -3000, money: 0, message: "Un director conocido te cortó la entrevista en vivo porque no te sabía el nombre. Viral, pero no del bueno." } },
+      ],
+    },
+    {
+      title: "Escándalo Político en Vivo",
+      description: "Un dirigente cercano al canal protagoniza un escándalo en plena jornada. QUERATINA quiere reacción inmediata al aire.",
+      options: [
+        { text: "Cubrirlo con datos y contexto, sin apasionamiento", detail: "Periodismo antes que militancia.", successChance: 0.58,
+          success: { followers: 10000, money: 3, message: "Tu cobertura fue seria y equilibrada. Te diferenciaste del ruido general." },
+          failure: { followers: -3000, money: 0, message: "El canal esperaba más compromiso con la línea editorial. Quedaste como tibio." } },
+        { text: "Opinar fuerte desde la línea del canal", detail: "Bancar la posición sin dudar.", successChance: 0.46,
+          success: { followers: 16000, money: 4, message: "La posición fue contundente. La audiencia fiel de QUERATINA te aplaudió de pie." },
+          failure: { followers: -9000, money: 0, message: "El escándalo terminó siendo un fiasco y vos quedaste defendiendo lo indefendible en vivo." } },
+      ],
+    },
+    {
+      title: QUERATINA_SONG_TITLE,
+      description: "Un seguidor compuso una canción dedicada a una estrella de mar con un culo pronunciado. Sin que nadie lo planificara, el tema te involucra y te hacés viral en TikTok durante toda la semana.",
+      options: [
+        { text: "Te montás en el viral. Lo compartís, lo bailás, lo hacés tuyo.", detail: "Si ya sos meme, mejor serlo con dignidad.", successChance: 0.58,
+          success: { followers: 22000, money: 0, message: "El momento fue glorioso. Millones de vistas, apareciste en todos los medios y la canción sonó en un programa de TV. Pepe Racinclub no entendió nada pero festejó igual." },
+          failure: { followers: -5000, money: 0, message: "El intento de montarte en el viral quedó forzado. Las redes lo sintieron artificial y el chiste se convirtió en otro chiste, pero sobre vos." } },
+        { text: "Lo ignorás. QUERATINA es un canal serio.", detail: "La imagen política primero.", successChance: 0.52,
+          success: { followers: 3000, money: 0, message: "La decisión de no comentarlo fue leída como madurez. El viral pasó solo y tu imagen dentro del canal quedó intacta." },
+          failure: { followers: -8000, money: 0, message: "Ignorarlo fue un error. Todo el mundo hablaba del tema y tu silencio hizo que parecieras molesto. Las redes te hicieron meme igual, pero sin que pudieras controlar el relato." } },
       ],
     },
   ],
