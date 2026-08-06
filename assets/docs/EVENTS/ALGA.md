@@ -60,7 +60,7 @@ OPCIÓN A: Pedís disculpas al día siguiente
 
 SUBTÍTULO: "Con eso no se jode"
 
-PROBABILIDAD: 70\&
+PROBABILIDAD: 70%
 
 SALE BIEN: La mayoría te perdona y pasas página rápido
 
@@ -144,7 +144,7 @@ RAREZA:
 
 TÍTULO:  NUEVA INCORPORACIÓN
 
-DESCRIPCIÓN:  Granate se roba una figura de Ruzu y te conduzcas un programa con ella para justificar el sueldo. Vos no te la bancás.
+DESCRIPCIÓN:  Granate se roba una figura de Ruzu y te pide que conduzcas un programa con ella para justificar el sueldo. Vos no te la bancás.
 
 OPCIÓN A: Aceptás
 

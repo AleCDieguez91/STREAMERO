@@ -1173,16 +1173,16 @@ function ScreenTransferMarket({ gs, onChoose }: { gs: GameState; onChoose: (ch: 
                     style={{ background: info.color, color: "#fff" }}>Renovar</span>
                 )}
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5 mb-2">
                     {info.logo ? (
                       <img
                         src={info.logo}
                         alt={info.shortName}
-                        className="h-5 w-5 object-contain shrink-0"
+                        className="h-12 w-12 sm:h-14 sm:w-14 object-contain shrink-0"
                       />
                     ) : null}
-                    <h3 className="font-black text-2xl tracking-wider"
-                      style={{ fontFamily: "'Barlow Condensed', sans-serif", color: info.accent }}>
+                    <h3 className="font-black text-3xl sm:text-[34px] leading-none tracking-wider"
+                      style={{ fontFamily: "'Barlow Condensed', sans-serif", color: info.accent, fontWeight: 900 }}>
                       {info.shortName}
                     </h3>
                   </div>
