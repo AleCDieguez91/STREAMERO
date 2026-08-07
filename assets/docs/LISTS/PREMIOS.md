@@ -1,33 +1,33 @@
-PREMIO: MARTIN\_FIERRO\_DIGITAL
+ID: MARTIN\_FIERRO\_DIGITAL
 NOMBRE: Martín Fierro Digital
 ICONO: martin\_fierro.png
-TIPO: Anual
+TIPO: ANUAL
 
 
-
-PREMIO: COSCU\_ARMY\_AWARDS
+ID: COSCU\_ARMY\_AWARDS
 NOMBRE: Coscu Army Awards
 ICONO: coscu\_awards.png
-TIPO: Anual
+TIPO: ANUAL
 
 
-
-PREMIO: PREMIOS\_IDOLO
+ID: PREMIOS\_IDOLO
 NOMBRE: Premios Idolo
 ICONO: idolo.png
-TIPO: Anual
+TIPO: ANUAL
 
 
-
-PREMIO: PLACA\_100K
+ID: PLACA\_100K
 NOMBRE: Placa de Plata
 ICONO: placa\_100k.png
-TIPO: Automático
+TIPO: AUTOMATICO
+
+REQUISITO: Llegar a 100k de seguidores
 
 
-
-PREMIO: PLACA\_1M
+ID: PLACA\_1M
 NOMBRE: Placa de Oro
 ICONO: placa\_1m.png
-TIPO: Automático
+TIPO: AUTOMATICO
+
+REQUISITO: Llegar a 1M de seguidores
 

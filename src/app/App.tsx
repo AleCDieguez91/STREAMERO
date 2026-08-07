@@ -12,8 +12,97 @@ import algaEventsMd from "../../assets/docs/EVENTS/ALGA.md?raw";
 import orterixEventsMd from "../../assets/docs/EVENTS/ORTERIX.md?raw";
 import renderEventsMd from "../../assets/docs/EVENTS/RENDER.md?raw";
 import ruzuEventsMd from "../../assets/docs/EVENTS/RUZU.md?raw";
+import premiosMd from "../../assets/docs/LISTS/PREMIOS.md?raw";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface GamePrize {
+  id: string;
+  name: string;
+  type: "AUTOMATICO" | "ANUAL";
+  icon: string;
+  requirement?: string;
+  followersRequirement?: number;
+}
+
+interface AwardedPrize {
+  id: string;
+  name: string;
+  icon: string;
+  requirement?: string;
+  count: number;
+}
+
+function normalizePrizeToken(value: string): string {
+  return value.replace(/\\/g, "").trim();
+}
+
+function parseRequirementThreshold(requirement?: string): number | undefined {
+  if (!requirement) return undefined;
+  const match = requirement.match(/(\d+(?:[.,]\d+)?)\s*(k|m)?/i);
+  if (!match) return undefined;
+
+  let value = Number.parseFloat((match[1] ?? "0").replace(",", "."));
+  const suffix = (match[2] ?? "").toLowerCase();
+  if (suffix === "k") value *= 1000;
+  if (suffix === "m") value *= 1000000;
+  return Math.round(value);
+}
+
+function parsePrizesFromMarkdown(markdown: string): GamePrize[] {
+  const sections = markdown.split(/(?=^ID:|^PREMIO:)/mi).map((section) => section.trim()).filter(Boolean);
+
+  return sections.flatMap((section) => {
+    const lines = section.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const idLine = lines.find((line) => /^ID:|^PREMIO:/i.test(line));
+    const nameLine = lines.find((line) => /^NOMBRE:/i.test(line));
+    const typeLine = lines.find((line) => /^TIPO:/i.test(line));
+    const iconLine = lines.find((line) => /^ICONO:/i.test(line));
+    const requirementLine = lines.find((line) => /^REQUISITO:/i.test(line));
+
+    const id = normalizePrizeToken((idLine ?? "").replace(/^ID:\s*|^PREMIO:\s*/i, ""));
+    const name = (nameLine ?? "").replace(/^NOMBRE:\s*/i, "").trim();
+    const rawType = (typeLine ?? "").replace(/^TIPO:\s*/i, "").trim().toUpperCase();
+    const icon = normalizePrizeToken((iconLine ?? "").replace(/^ICONO:\s*/i, ""));
+    const requirement = (requirementLine ?? "").replace(/^REQUISITO:\s*/i, "").trim();
+
+    const normalizedType = rawType === "AUTOMATICO" || rawType === "ANUAL" ? rawType : undefined;
+
+    if (!id || !name || !normalizedType || !icon) return [];
+
+    return [{
+      id,
+      name,
+      type: normalizedType,
+      icon,
+      ...(requirement ? { requirement } : {}),
+      followersRequirement: parseRequirementThreshold(requirement),
+    }];
+  });
+}
+
+const DOC_PREMIOS: GamePrize[] = parsePrizesFromMarkdown(premiosMd);
+
+function awardAutomaticPrizes(followers: number, currentAwards: AwardedPrize[] = []): AwardedPrize[] {
+  const awards = [...currentAwards];
+
+  for (const prize of DOC_PREMIOS) {
+    if (prize.type !== "AUTOMATICO") continue;
+    if (prize.followersRequirement === undefined) continue;
+    if (awards.some((entry) => entry.id === prize.id)) continue;
+    if (followers < prize.followersRequirement) continue;
+
+    awards.push({
+      id: prize.id,
+      name: prize.name,
+      icon: prize.icon,
+      requirement: prize.requirement,
+      count: 1,
+    });
+  }
+
+  return awards;
+}
 
 type Phase =
   | "intro"
@@ -89,6 +178,7 @@ interface GameState {
   usedFajenseRivals: string[];
   usedEventKeys: string[];
   excludedChannel?: Channel | null;
+  awardedAutomaticPrizes: AwardedPrize[];
 }
 
 const EVENTS_PER_SEASON = 4;
@@ -1240,6 +1330,7 @@ const INIT: GameState = {
   usedFajenseRivals: [],
   usedEventKeys: [],
   excludedChannel: null,
+  awardedAutomaticPrizes: [],
 };
 
 // ─── UI Primitives ────────────────────────────────────────────────────────────
@@ -1495,19 +1586,10 @@ function ScreenTransferMarket({ gs, onChoose }: { gs: GameState; onChoose: (ch: 
   );
 }
 
-const MOCK_PREMIOS = [
-  { id: "martin-fierro", src: orterixLogo, count: 2, owned: true, blocked: false },
-  { id: "idolo", src: renderLogo, count: 3, owned: true, blocked: false },
-  { id: "placa-oro", src: algaLogo, count: 1, owned: true, blocked: false },
-  { id: "sin-ganar", src: assLogo, count: 1, owned: false, blocked: false },
-  { id: "bloqueado", src: ruzuLogo, count: 4, owned: true, blocked: true },
-];
-
-function PrizeShowcase() {
-  const prizes = MOCK_PREMIOS.filter((prize) => prize.owned && prize.count > 0 && !prize.blocked);
+function PrizeShowcase({ prizes }: { prizes: AwardedPrize[] }) {
   if (prizes.length === 0) return null;
 
-  const rows: typeof prizes[] = [];
+  const rows: AwardedPrize[][] = [];
   for (let index = 0; index < prizes.length; index += 1) {
     const rowIndex = Math.floor(index / 3);
     if (!rows[rowIndex]) rows[rowIndex] = [];
@@ -1525,13 +1607,19 @@ function PrizeShowcase() {
         {rows.map((row, rowIndex) => (
           <div key={`row-${rowIndex}`} className="grid grid-cols-3 gap-2">
             {row.map((prize) => (
-              <div key={prize.id} className="flex flex-col items-center justify-center gap-1.5 text-center min-w-0">
+              <motion.div
+                key={prize.id}
+                initial={{ opacity: 0, scale: 0.6, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                className="flex flex-col items-center justify-center gap-1.5 text-center min-w-0"
+              >
                 <div className="flex h-11 w-11 items-center justify-center rounded-lg"
                   style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                  <img src={prize.src} alt="" className="h-8 w-8 object-contain" />
+                  <img src={`/assets/${prize.icon}`} alt={prize.name} className="h-8 w-8 object-contain" />
                 </div>
                 <span className="font-mono text-[10px] font-bold" style={{ color: "#d9d9f6" }}>x{prize.count}</span>
-              </div>
+              </motion.div>
             ))}
           </div>
         ))}
@@ -1564,7 +1652,7 @@ function ScreenEvent({ gs, onChoose, onContinueAutomatic }: { gs: GameState; onC
         className="max-w-5xl w-full relative z-10">
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
           <div className="flex flex-col gap-4 lg:pt-[54px]">
-            <PrizeShowcase />
+            <PrizeShowcase prizes={gs.awardedAutomaticPrizes} />
           </div>
 
           <div className="flex flex-col gap-6">
@@ -1924,13 +2012,18 @@ export default function App() {
 
   
 
-  const applyDelta = (delta: StatDelta, s: GameState) => ({
-    followers: Math.max(0, s.followers + delta.followers),
-    reputation: Math.min(100, Math.max(0, s.reputation + (delta.reputation ?? 0))),
-    seasonAccum: {
-      followers: s.seasonAccum.followers + delta.followers,
-    },
-  });
+  const applyDelta = (delta: StatDelta, s: GameState) => {
+    const nextFollowers = Math.max(0, s.followers + delta.followers);
+    const nextAwards = awardAutomaticPrizes(nextFollowers, s.awardedAutomaticPrizes);
+    return {
+      followers: nextFollowers,
+      reputation: Math.min(100, Math.max(0, s.reputation + (delta.reputation ?? 0))),
+      seasonAccum: {
+        followers: s.seasonAccum.followers + delta.followers,
+      },
+      awardedAutomaticPrizes: nextAwards,
+    };
+  };
 
   const applyDeltas = (deltas: StatDelta[], s: GameState) => deltas.reduce((acc, delta) => ({ ...acc, ...applyDelta(delta, acc) }), s);
 
@@ -1961,6 +2054,7 @@ export default function App() {
         isFirstMarket: false,
         usedFajenseRivals: usedRivals,
         usedEventKeys: nextUsedEventKeys,
+        awardedAutomaticPrizes: awardAutomaticPrizes(s.followers, s.awardedAutomaticPrizes),
       };
     });
   }, []);
