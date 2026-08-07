@@ -1495,6 +1495,51 @@ function ScreenTransferMarket({ gs, onChoose }: { gs: GameState; onChoose: (ch: 
   );
 }
 
+const MOCK_PREMIOS = [
+  { id: "martin-fierro", src: orterixLogo, count: 2, owned: true, blocked: false },
+  { id: "idolo", src: renderLogo, count: 3, owned: true, blocked: false },
+  { id: "placa-oro", src: algaLogo, count: 1, owned: true, blocked: false },
+  { id: "sin-ganar", src: assLogo, count: 1, owned: false, blocked: false },
+  { id: "bloqueado", src: ruzuLogo, count: 4, owned: true, blocked: true },
+];
+
+function PrizeShowcase() {
+  const prizes = MOCK_PREMIOS.filter((prize) => prize.owned && prize.count > 0 && !prize.blocked);
+  if (prizes.length === 0) return null;
+
+  const rows: typeof prizes[] = [];
+  for (let index = 0; index < prizes.length; index += 1) {
+    const rowIndex = Math.floor(index / 3);
+    if (!rows[rowIndex]) rows[rowIndex] = [];
+    rows[rowIndex].push(prizes[index]);
+  }
+
+  return (
+    <div className="rounded-2xl overflow-hidden"
+      style={{ background: "rgba(15,15,30,0.74)", border: "1px solid rgba(124,58,237,0.18)", boxShadow: "0 0 20px rgba(124,58,237,0.08)" }}>
+      <div className="px-3 py-2 text-[10px] font-mono tracking-[0.24em] uppercase text-center"
+        style={{ color: "#a0a0d0", background: "rgba(15,15,30,0.85)", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+        VITRINA DE PREMIOS
+      </div>
+      <div className="flex flex-col gap-3 p-3">
+        {rows.map((row, rowIndex) => (
+          <div key={`row-${rowIndex}`} className="grid grid-cols-3 gap-2">
+            {row.map((prize) => (
+              <div key={prize.id} className="flex flex-col items-center justify-center gap-1.5 text-center min-w-0">
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg"
+                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <img src={prize.src} alt="" className="h-8 w-8 object-contain" />
+                </div>
+                <span className="font-mono text-[10px] font-bold" style={{ color: "#d9d9f6" }}>x{prize.count}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ScreenEvent({ gs, onChoose, onContinueAutomatic }: { gs: GameState; onChoose: (idx: number) => void; onContinueAutomatic: () => void }) {
   const ev = gs.currentEvents[gs.eventIndex];
   const ch = CHANNELS[gs.currentChannel] ?? FALLBACK_CHANNEL;
@@ -1516,100 +1561,108 @@ function ScreenEvent({ gs, onChoose, onContinueAutomatic }: { gs: GameState; onC
         />
       ) : null}
       <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.45 }}
-        className="max-w-lg w-full flex flex-col gap-6 relative z-10">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-mono text-xs tracking-[0.25em] uppercase" style={{ color: "#7070a0" }}>
-              Temporada {gs.season} · Evento {gs.eventIndex + 1}/{EVENTS_PER_SEASON}
-            </p>
-            <div className="flex gap-1.5 mt-2">
-              {Array.from({ length: EVENTS_PER_SEASON }, (_, i) => (
-                <div key={i} className="h-1 rounded-full transition-all duration-300"
-                  style={{ width: i === gs.eventIndex ? 28 : 16,
-                    background: i < gs.eventIndex ? ch.color : i === gs.eventIndex ? ch.accent : "rgba(255,255,255,0.07)" }} />
-              ))}
-            </div>
+        className="max-w-5xl w-full relative z-10">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
+          <div className="flex flex-col gap-4 lg:pt-[54px]">
+            <PrizeShowcase />
           </div>
-          <span className="font-black text-sm tracking-widest px-3 py-1 rounded-lg"
-            style={{ fontFamily: "'Barlow Condensed', sans-serif", background: `${ch.color}20`, color: ch.accent, border: `1px solid ${ch.color}38` }}>
-            {ch.shortName}
-          </span>
-        </div>
 
-        <div className="rounded-2xl p-6"
-          style={{ background: "rgba(15,15,30,0.8)",
-            border: isSpecial ? "1px solid rgba(159,18,57,0.5)" : "1px solid rgba(124,58,237,0.15)",
-            boxShadow: isSpecial ? "0 0 32px rgba(159,18,57,0.15)" : "none" }}>
-          {isSpecial && (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full mb-3 text-xs font-mono font-semibold"
-              style={{ background: "rgba(159,18,57,0.2)", border: "1px solid rgba(159,18,57,0.4)", color: "#fb7185" }}>
-              EVENTO ESPECIAL
+          <div className="flex flex-col gap-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-mono text-xs tracking-[0.25em] uppercase" style={{ color: "#7070a0" }}>
+                  Temporada {gs.season} · Evento {gs.eventIndex + 1}/{EVENTS_PER_SEASON}
+                </p>
+                <div className="flex gap-1.5 mt-2">
+                  {Array.from({ length: EVENTS_PER_SEASON }, (_, i) => (
+                    <div key={i} className="h-1 rounded-full transition-all duration-300"
+                      style={{ width: i === gs.eventIndex ? 28 : 16,
+                        background: i < gs.eventIndex ? ch.color : i === gs.eventIndex ? ch.accent : "rgba(255,255,255,0.07)" }} />
+                  ))}
+                </div>
+              </div>
+              <span className="font-black text-sm tracking-widest px-3 py-1 rounded-lg"
+                style={{ fontFamily: "'Barlow Condensed', sans-serif", background: `${ch.color}20`, color: ch.accent, border: `1px solid ${ch.color}38` }}>
+                {ch.shortName}
+              </span>
             </div>
-          )}
-          <h2 className="font-black text-3xl mb-3 leading-tight" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-            {ev.title}
-          </h2>
-          <p className="text-sm leading-relaxed" style={{ color: "#9090b8" }}>{ev.description}</p>
-        </div>
 
-        {isAutomatic ? (
-          <div className="flex flex-col gap-3">
-            <div className="rounded-2xl p-5"
-              style={{ background: "rgba(15,15,30,0.65)", border: "1px solid rgba(124,58,237,0.15)" }}>
-              <p className="text-xs font-mono tracking-widest uppercase mb-3" style={{ color: "#7070a0" }}>Consecuencias</p>
-              {(ev.consequences ?? []).length > 0 && (
-                <div className="flex flex-col gap-4">
-                  <div className="text-sm leading-relaxed" style={{ color: "#c0c0e0" }}>
-                    {(ev.consequences ?? []).find((delta) => delta.message)?.message || ""}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-4">
-                    {(ev.consequences ?? []).flatMap((delta, deltaIndex) => {
-                      const items: Array<{ key: string; icon: string; value: number }> = [];
-                      if (delta.followers !== undefined) {
-                        items.push({ key: `followers-${deltaIndex}`, icon: "👥", value: delta.followers });
-                      }
-                      if (delta.reputation !== undefined) {
-                        items.push({ key: `reputation-${deltaIndex}`, icon: "🏅", value: delta.reputation });
-                      }
-                      return items;
-                    }).map((item) => (
-                      <div key={item.key} className="flex items-center gap-2">
-                        <span className="text-sm">{item.icon}</span>
-                        <Delta v={item.value} />
-                      </div>
-                    ))}
-                  </div>
+            <div className="rounded-2xl p-6"
+              style={{ background: "rgba(15,15,30,0.8)",
+                border: isSpecial ? "1px solid rgba(159,18,57,0.5)" : "1px solid rgba(124,58,237,0.15)",
+                boxShadow: isSpecial ? "0 0 32px rgba(159,18,57,0.15)" : "none" }}>
+              {isSpecial && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full mb-3 text-xs font-mono font-semibold"
+                  style={{ background: "rgba(159,18,57,0.2)", border: "1px solid rgba(159,18,57,0.4)", color: "#fb7185" }}>
+                  EVENTO ESPECIAL
                 </div>
               )}
+              <h2 className="font-black text-3xl mb-3 leading-tight" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+                {ev.title}
+              </h2>
+              <p className="text-sm leading-relaxed" style={{ color: "#9090b8" }}>{ev.description}</p>
             </div>
-            <motion.button onClick={onContinueAutomatic} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-              className="w-full py-4 rounded-xl font-black text-base tracking-widest uppercase"
-              style={{ fontFamily: "'Barlow Condensed', sans-serif", background: "linear-gradient(135deg, #7c3aed, #a855f7)", color: "#fff" }}>
-              CONTINUAR
-            </motion.button>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            <p className="text-xs font-mono tracking-widest uppercase" style={{ color: "#7070a0" }}>¿Qué decidís?</p>
-            {(ev.options ?? []).map((opt, i) => (
-              <motion.button key={i} onClick={() => onChoose(i)}
-                whileHover={{ scale: 1.02, x: 5 }} whileTap={{ scale: 0.98 }}
-                className="text-left p-5 rounded-xl transition-all duration-200"
-                style={{ background: "rgba(15,15,30,0.6)", border: "1px solid rgba(124,58,237,0.15)" }}>
-                <div className="flex items-start gap-4">
-                  <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 mt-0.5"
-                    style={{ background: `${ch.color}28`, color: ch.accent, fontFamily: "'Barlow Condensed', sans-serif" }}>
-                    {String.fromCharCode(65 + i)}
-                  </span>
-                  <div>
-                    <p className="font-semibold text-sm" style={{ color: "#eaeaff" }}>{normalizeOptionText(opt.text)}</p>
-                    <p className="text-xs mt-0.5" style={{ color: "#7070a0" }}>{opt.detail}</p>
-                  </div>
+
+            {isAutomatic ? (
+              <div className="flex flex-col gap-3">
+                <div className="rounded-2xl p-5"
+                  style={{ background: "rgba(15,15,30,0.65)", border: "1px solid rgba(124,58,237,0.15)" }}>
+                  <p className="text-xs font-mono tracking-widest uppercase mb-3" style={{ color: "#7070a0" }}>Consecuencias</p>
+                  {(ev.consequences ?? []).length > 0 && (
+                    <div className="flex flex-col gap-4">
+                      <div className="text-sm leading-relaxed" style={{ color: "#c0c0e0" }}>
+                        {(ev.consequences ?? []).find((delta) => delta.message)?.message || ""}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-4">
+                        {(ev.consequences ?? []).flatMap((delta, deltaIndex) => {
+                          const items: Array<{ key: string; icon: string; value: number }> = [];
+                          if (delta.followers !== undefined) {
+                            items.push({ key: `followers-${deltaIndex}`, icon: "👥", value: delta.followers });
+                          }
+                          if (delta.reputation !== undefined) {
+                            items.push({ key: `reputation-${deltaIndex}`, icon: "🏅", value: delta.reputation });
+                          }
+                          return items;
+                        }).map((item) => (
+                          <div key={item.key} className="flex items-center gap-2">
+                            <span className="text-sm">{item.icon}</span>
+                            <Delta v={item.value} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </motion.button>
-            ))}
+                <motion.button onClick={onContinueAutomatic} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  className="w-full py-4 rounded-xl font-black text-base tracking-widest uppercase"
+                  style={{ fontFamily: "'Barlow Condensed', sans-serif", background: "linear-gradient(135deg, #7c3aed, #a855f7)", color: "#fff" }}>
+                  CONTINUAR
+                </motion.button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <p className="text-xs font-mono tracking-widest uppercase" style={{ color: "#7070a0" }}>¿Qué decidís?</p>
+                {(ev.options ?? []).map((opt, i) => (
+                  <motion.button key={i} onClick={() => onChoose(i)}
+                    whileHover={{ scale: 1.02, x: 5 }} whileTap={{ scale: 0.98 }}
+                    className="text-left p-5 rounded-xl transition-all duration-200"
+                    style={{ background: "rgba(15,15,30,0.6)", border: "1px solid rgba(124,58,237,0.15)" }}>
+                    <div className="flex items-start gap-4">
+                      <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 mt-0.5"
+                        style={{ background: `${ch.color}28`, color: ch.accent, fontFamily: "'Barlow Condensed', sans-serif" }}>
+                        {String.fromCharCode(65 + i)}
+                      </span>
+                      <div>
+                        <p className="font-semibold text-sm" style={{ color: "#eaeaff" }}>{normalizeOptionText(opt.text)}</p>
+                        <p className="text-xs mt-0.5" style={{ color: "#7070a0" }}>{opt.detail}</p>
+                      </div>
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </motion.div>
     </div>
   );
