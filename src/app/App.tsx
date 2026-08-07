@@ -32,8 +32,7 @@ type Channel =
   | "RENDER"
   | "CARANCHO"
   | "QUERATINA"
-  | "FUTUPOP"
-  | "UN POCO DE BOCHINCHE";
+  | "FUTUPOP";
 
 interface StatDelta {
   followers: number;
@@ -492,10 +491,10 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "ORTERIX organiza un panel donde cada uno dice su opinión más polémica sobre deporte. Todos miran.",
       options: [
         { text: "El hot take más arriesgado que tenés", detail: "Decir lo que nadie se anima.", successChance: 0.44,
-          success: { followers: 16000, money: 4, message: "Tu opinión explotó en redes. Mitad te odia, mitad te adora. Ambos te siguen." },
+          success: { followers: 5000, money: 4, message: "Tu opinión explotó en redes. Mitad te odia, mitad te adora. Ambos te siguen." },
           failure: { followers: -8000, money: 0, message: "La opinión cayó fatal. Trending topic por las razones equivocadas." } },
         { text: "Opinión fuerte pero con respaldo", detail: "Polémica con argumentos.", successChance: 0.67,
-          success: { followers: 8000, money: 2, message: "Posición sólida. La audiencia te tomó en serio y siguió el debate." },
+          success: { followers: 1000, money: 2, message: "Posición sólida. La audiencia te tomó en serio y siguió el debate." },
           failure: { followers: -2000, money: 0, message: "Quedó como una opinión a medias. No convenció a nadie." } },
       ],
     },
@@ -504,11 +503,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "El streamer estrella de ORTERIX te propone hacer un stream conjunto. Es un salto enorme de visibilidad.",
       options: [
         { text: "Aceptar y cederle el protagonismo", detail: "Venir a sumar, no a competir.", successChance: 0.68,
-          success: { followers: 14000, money: 4, message: "El stream fue un éxito. La comunidad de Azuquita te adoptó." },
-          failure: { followers: -3000, money: 0, message: "Quedaste opacado. La audiencia ni te registró al lado suyo." } },
+          success: { followers: 4000, money: 4, message: "El stream fue un éxito. La comunidad de Azuquita te adoptó." },
+          failure: { followers: -300, money: 0, message: "Quedaste opacado. La audiencia ni te registró al lado suyo." } },
         { text: "Proponer un formato donde los dos brillen", detail: "Negociar los términos creativos.", successChance: 0.48,
-          success: { followers: 20000, money: 6, message: "El formato fue brillante. Ambos crecieron. Hablan de ustedes como dupla." },
-          failure: { followers: -6000, money: 0, message: "La negociación enfrió la idea. La collab salió sin la energía del principio." } },
+          success: { followers: 6000, money: 6, message: "El formato fue brillante. Ambos crecieron. Hablan de ustedes como dupla." },
+          failure: { followers: -600, money: 0, message: "La negociación enfrió la idea. La collab salió sin la energía del principio." } },
       ],
     },
     {
@@ -945,27 +944,27 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       ],
     },
     {
-      title: "Te Piden Atacar a un Periodista Rival",
-      description: "La dirección del canal te manda un mensaje claro: tenés que ir contra un periodista de otro medio en vivo.",
+      title: "Te Piden Atacar a un Canal Rival",
+      description: "La dirección del canal te manda un mensaje claro: tenés que ir contra un canal rival en vivo.",
       options: [
         { text: "Hacerlo: seguir la línea del canal", detail: "Prioridad al contrato.", successChance: 0.57,
           success: { followers: 9000, money: 4, message: "El ataque fue efectivo según los estándares de CARANCHO. El canal quedó conforme." },
-          failure: { followers: -5000, money: 0, message: "El periodista atacado respondió mejor. Te hiciste quedar mal a vos mismo." } },
-        { text: "Negarte a atacar a otra persona", detail: "Tu integridad primero.", successChance: 0.48,
+          failure: { followers: -5000, money: 0, message: "El canal rival te sacó a pasear. Humillado totalmente." } },
+        { text: "Negarte a atacar sin razón", detail: "Tu integridad primero.", successChance: 0.48,
           success: { followers: 13000, money: 3, message: "La negativa se viralizó. Paradójicamente, ganaste seguidores fuera de CARANCHO." },
           failure: { followers: -10000, money: 0, message: "CARANCHO no negocia la línea editorial. Tu posición dentro del canal peligra." } },
       ],
     },
     {
       title: "El Escándalo: CARANCHO y RENDER, el Mismo Dueño",
-      description: "Sale a la luz que CARANCHO y RENDER tienen el mismo propietario. El escándalo mediático es monumental y te piden que lo manejés.",
+      description: "Sale a la luz (de nuevo) que CARANCHO y RENDER tienen el mismo propietario. El escándalo mediático es monumental y te piden que lo manejés.",
       options: [
         { text: "Defender la situación en nombre del canal", detail: "El canal te pide que salgas a aclarar.", successChance: 0.45,
           success: { followers: 6000, money: 6, message: "Lograste bajar la temperatura. El canal te lo agradeció con un bono." },
           failure: { followers: -12000, money: 0, message: "La defensa fue insostenible. Te convirtieron en el blanco de todas las críticas." } },
         { text: "Salir del tema con humor y esquivar", detail: "No querer saber nada.", successChance: 0.64,
           success: { followers: 7000, money: 2, message: "El humor desactivó el momento. El canal respiró aliviado." },
-          failure: { followers: -4000, money: 0, message: "El chiste cayó pésimo en un momento serio. Peor el remedio que la enfermedad." } },
+          failure: { followers: -4000, money: -5, message: "Las redes te tildan de pelotudo. Peor el remedio que la enfermedad." } },
       ],
     },
   ],
@@ -992,7 +991,7 @@ const EVENTS: Record<Channel, GameEvent[]> = {
           failure: { followers: -8000, money: 0, message: "El referente se cerró y la entrevista murió antes de empezar. QUERATINA no te lo perdonó fácil." } },
         { text: "Entrevista respetuosa y de fondo", detail: "Que el entrevistado se abra solo.", successChance: 0.72,
           success: { followers: 11000, money: 3, message: "La figura habló como nunca. Momento emotivo que el canal usó durante semanas." },
-          failure: { followers: -2000, money: 0, message: "Correcta pero sin momentos propios. La audiencia esperaba más profundidad." } },
+          failure: { followers: -2000, money: 0, message: "Correcta pero sin momentos propios. La audiencia dice que sos tibio." } },
       ],
     },
     {
