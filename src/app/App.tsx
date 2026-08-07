@@ -134,7 +134,7 @@ const CHANNELS: Record<Channel, ChannelInfo> = {
     figure: "Migue Granate",
     remuneration: 4, reach: 4, demand: "Media",
     passiveMoney: 18,
-    color: "#d97706", glow: "rgba(217,119,6,0.35)", accent: "#fbbf24",
+    color: "#fe0144", glow: "rgba(254,1,68,0.35)", accent: "#ff3d7a",
   },
   ASS: {
     name: "ASS",
@@ -178,14 +178,14 @@ const CHANNELS: Record<Channel, ChannelInfo> = {
     figure: "El Gordo Pan",
     remuneration: 4, reach: 3, demand: "Alta",
     passiveMoney: 16,
-    color: "#a16207", glow: "rgba(161,98,7,0.35)", accent: "#fde047",
+    color: "#67bed9", glow: "rgba(103,190,217,0.35)", accent: "#67bed9",
   },
   QUERATINA: {
     name: "QUERATINA",
     shortName: "QUERATINA",
     logo: queratinaLogo,
-    tagline: "Política, entrevistas y cultura",
-    description: "Debates largos, análisis y entrevistas profundas. Es un canal donde las conversaciones suelen ocupar toda la transmisión.",
+    tagline: "Política, entrevistas y cultura. Programa estrella: \"Industria Popular\"", 
+    description: "Debates largos, análisis y entrevistas profundas. Es un canal donde las conversaciones suelen ocupar toda la transmisión. Programa estrella: \"Industria Popular\".",
     figure: "Pepe Racinclub",
     remuneration: 3, reach: 4, demand: "Media",
     passiveMoney: 13,
@@ -1453,26 +1453,28 @@ function ScreenTransferMarket({ gs, onChoose }: { gs: GameState; onChoose: (ch: 
                       />
                     ) : null}
                     <h3 className="font-black text-3xl sm:text-[34px] leading-none tracking-wider"
-                      style={{ fontFamily: "'Barlow Condensed', sans-serif", color: info.accent, fontWeight: 900 }}>
+                      style={{ fontFamily: "'Barlow Condensed', sans-serif", color: channel === "RENDER" ? "#ffffff" : info.accent, fontWeight: 900 }}>
                       {info.shortName}
                     </h3>
                   </div>
                   <p className="text-xs mt-0.5" style={{ color: "#6060a0" }}>{info.tagline}</p>
                   {info.figure !== "–" && (
-                    <p className="text-xs mt-1 font-mono" style={{ color: info.accent }}>Figura: {info.figure}</p>
+                    <p className="text-xs mt-1 font-mono" style={{ color: channel === "RENDER" ? "#ffffff" : info.accent }}>
+                      Figura: {info.figure}
+                    </p>
                   )}
                 </div>
                 <div className="grid grid-cols-3 gap-2 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
                   <div>
                     <p className="text-xs font-mono mb-1.5" style={{ color: "#6060a0" }}>Remuneración</p>
-                    <Pips n={info.remuneration} max={5} color={info.accent} />
+                    <Pips n={info.remuneration} max={5} color={channel === "RENDER" ? "#ffffff" : info.accent} />
                     <p className="text-xs font-mono mt-1" style={{ color: "#5050a0" }}>
                       {["", "Mínima", "Baja", "Media", "Alta", "Muy alta"][info.remuneration]}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs font-mono mb-1.5" style={{ color: "#6060a0" }}>Alcance</p>
-                    <Pips n={info.reach} max={5} color={info.accent} />
+                    <Pips n={info.reach} max={5} color={channel === "RENDER" ? "#ffffff" : info.accent} />
                     <p className="text-xs font-mono mt-1" style={{ color: "#5050a0" }}>
                       {["", "Mínimo", "Bajo", "Medio", "Alto", "Muy alto"][info.reach]}
                     </p>
