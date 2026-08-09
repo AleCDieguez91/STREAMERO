@@ -17,18 +17,13 @@ NOMBRE: Premios Idolo
 ICONO: idolo.png
 TIPO: ANUAL
 
-ID: FAJENSE_DE_MANOS
-NOMBRE: Fajense de Manos
-ICONO: fajense.png
-TIPO: ANUAL
-
 
 
 ID: FAJENSE\_DE\_MANOS
 
 NOMBRE: Fajense de Manos
 
-ICONO: fajense_de_manos.png
+ICONO: fajense\_de\_manos.png
 
 TIPO: ESPECIAL
 
@@ -55,3 +50,4 @@ ICONO: placa\_1m.png
 TIPO: AUTOMATICO
 
 REQUISITO: Llegar a 1M de seguidores
+

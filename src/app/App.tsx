@@ -99,6 +99,8 @@ function parsePrizesFromMarkdown(markdown: string): GamePrize[] {
 
 const DOC_PREMIOS: GamePrize[] = parsePrizesFromMarkdown(premiosMd);
 const PRIZE_ASSET_IMPORTS = import.meta.glob("../../assets/premios/*.png", { eager: true, import: "default" }) as Record<string, string>;
+const AWARDS_SEASON_PRIZE_IDS = ["MARTIN_FIERRO_DIGITAL", "PREMIOS_IDOLO", "COSCU_ARMY_AWARDS"] as const;
+type AwardsSeasonPrizeId = typeof AWARDS_SEASON_PRIZE_IDS[number];
 // Reemplazar por la ruta/import del PNG definitivo cuando esté disponible.
 
 function getPrizeAssetSrc(icon: string): string | undefined {
@@ -123,11 +125,16 @@ function awardAutomaticPrizes(
   return awards;
 }
 
-function awardPrize(currentAwards: AwardedPrize[], prize: GamePrize, channel: Channel): AwardedPrize[] {
+function awardPrize(
+  currentAwards: AwardedPrize[],
+  prize: GamePrize,
+  channel: Channel,
+  options: { forceAccumulable?: boolean } = {},
+): AwardedPrize[] {
   const existing = currentAwards.find((entry) => entry.id === prize.id);
 
   if (existing) {
-    if (!prize.accumulable) return currentAwards;
+    if (!prize.accumulable && !options.forceAccumulable) return currentAwards;
     return currentAwards.map((entry) => entry.id === prize.id ? { ...entry, count: entry.count + 1 } : entry);
   }
 
@@ -170,6 +177,7 @@ type Phase =
   | "event"
   | "eventResult"
   | "seasonSummary"
+  | "awardsSeason"
   | "gameOver";
 
 type AvatarChoice = "avatar-a" | "avatar-b";
@@ -259,6 +267,10 @@ interface GameState {
   excludedChannels: Channel[];
   awardedAutomaticPrizes: AwardedPrize[];
   pendingPrizeUnlocks: AwardedPrize[];
+  awardsSeasonBoard: (AwardsSeasonPrizeId | null)[];
+  awardsSeasonRevealed: number[];
+  awardsSeasonCompleted: boolean;
+  awardsSeasonEndedByEmpty: boolean;
   recentPerformance: number;
   contractPerformanceTotal: number;
   contractPerformancePeriods: number;
@@ -1460,6 +1472,10 @@ const INIT: GameState = {
   excludedChannels: [],
   awardedAutomaticPrizes: [],
   pendingPrizeUnlocks: [],
+  awardsSeasonBoard: [],
+  awardsSeasonRevealed: [],
+  awardsSeasonCompleted: false,
+  awardsSeasonEndedByEmpty: false,
   recentPerformance: 50,
   contractPerformanceTotal: 0,
   contractPerformancePeriods: 0,
@@ -1832,6 +1848,58 @@ function PrizeUnlockModal({ prize, onContinue }: { prize: AwardedPrize; onContin
           style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.2rem", background: "linear-gradient(135deg, #7c3aed, #a855f7)", color: "#fff", boxShadow: "0 0 22px rgba(124,58,237,0.42)" }}
         >
           Continuar →
+        </motion.button>
+      </motion.section>
+    </motion.div>
+  );
+}
+
+function AwardsSeasonResultModal({ prizes, onContinue }: { prizes: GamePrize[]; onContinue: () => void }) {
+  const hasPrizes = prizes.length > 0;
+  return (
+    <motion.div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-[#03040c]/80 p-4 backdrop-blur-sm"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="awards-season-result-title"
+    >
+      <motion.section
+        initial={{ opacity: 0, y: 24, scale: 0.94 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 16, scale: 0.96 }}
+        transition={{ type: "spring", stiffness: 260, damping: 22 }}
+        className="w-full max-w-md overflow-hidden rounded-3xl p-6 text-center sm:p-8"
+        style={{ background: "radial-gradient(circle at 50% 5%, rgba(251,191,36,0.2), transparent 42%), linear-gradient(160deg, #17142b, #080a17 64%)", border: "1px solid rgba(251,191,36,0.48)", boxShadow: "0 0 60px rgba(245,158,11,0.3)" }}
+      >
+        <Award className="mx-auto" size={54} style={{ color: "#fbbf24" }} />
+        <p className="mt-6 font-mono text-xs font-bold uppercase tracking-[0.22em]" style={{ color: "#fde68a" }}>Temporada de premios</p>
+        <h2 id="awards-season-result-title" className="mt-4 font-black uppercase leading-none text-white" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(2.2rem, 7vw, 3.4rem)" }}>
+          {hasPrizes ? "Premios obtenidos" : "No ganaste ningún premio"}
+        </h2>
+        {hasPrizes ? (
+          <div className="mt-6 space-y-2 text-left">
+            {prizes.map((prize) => (
+              <div key={prize.id} className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.25)" }}>
+                {getPrizeAssetSrc(prize.icon) ? <img src={getPrizeAssetSrc(prize.icon)} alt="" className="h-9 w-9 object-contain" /> : <Award size={28} style={{ color: "#fbbf24" }} />}
+                <span className="font-semibold text-white">{prize.name}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-5 text-base leading-7" style={{ color: "#c9c9d7" }}>El primer panel estaba vacío. Esta vez la vitrina queda igual.</p>
+        )}
+        <motion.button
+          type="button"
+          onClick={onContinue}
+          whileHover={{ scale: 1.025 }}
+          whileTap={{ scale: 0.98 }}
+          className="mt-7 w-full rounded-xl py-3.5 font-black uppercase tracking-[0.15em]"
+          style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.2rem", background: "linear-gradient(135deg, #7c3aed, #a855f7)", color: "#fff", boxShadow: "0 0 22px rgba(124,58,237,0.42)" }}
+        >
+          Ir al Mercado de Pases →
         </motion.button>
       </motion.section>
     </motion.div>
@@ -2591,6 +2659,80 @@ function ScreenSeasonSummary({ gs, onContinue }: { gs: GameState; onContinue: ()
   );
 }
 
+function ScreenAwardsSeason({ gs, onChoose }: { gs: GameState; onChoose: (index: number) => void }) {
+  const ch = CHANNELS[gs.currentChannel] ?? FALLBACK_CHANNEL;
+  const foundCount = gs.awardsSeasonRevealed
+    .filter((index) => gs.awardsSeasonBoard[index] !== null)
+    .length;
+
+  if (gs.awardsSeasonCompleted) {
+    return (
+      <CareerScreenFrame gs={gs} progressCurrent={gs.season} progressTotal={SEASONS} progressLabel="Progreso de carrera" accent="#fbbf24">
+        <motion.div initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} className="flex min-h-[520px] items-center justify-center p-5 text-center">
+          <section className="w-full max-w-xl rounded-3xl p-8 sm:p-12" style={{ background: "radial-gradient(circle at 50% 5%, rgba(251,191,36,0.28), transparent 44%), linear-gradient(160deg, #17142b, #080a17 64%)", border: "1px solid rgba(251,191,36,0.55)", boxShadow: "0 0 60px rgba(245,158,11,0.28)" }}>
+            <Award className="mx-auto" size={62} style={{ color: "#fbbf24" }} />
+            <p className="mt-7 font-mono text-xs font-bold uppercase tracking-[0.25em]" style={{ color: "#fde68a" }}>Temporada de premios</p>
+            <h2 className="mt-4 font-black uppercase leading-none text-white" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(2.8rem, 8vw, 4.8rem)" }}>
+              {gs.awardsSeasonEndedByEmpty ? "La gala terminó" : "¡Ganaste todos los premios!"}
+            </h2>
+            <p className="mt-5 text-base leading-7" style={{ color: "#d4d4e3" }}>{gs.awardsSeasonEndedByEmpty ? "Revisá el resultado de la temporada." : "La gala termina con los tres premios en tu vitrina."}</p>
+          </section>
+        </motion.div>
+      </CareerScreenFrame>
+    );
+  }
+
+  return (
+    <CareerScreenFrame gs={gs} progressCurrent={gs.season} progressTotal={SEASONS} progressLabel="Progreso de carrera" accent={ch.accent}>
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="p-4 sm:p-5 xl:p-6">
+        <header className="text-center">
+          <p className="font-mono text-xs uppercase tracking-[0.24em]" style={{ color: "#fbbf24" }}>Reconocimientos de la temporada</p>
+          <h2 className="mt-2 font-black uppercase leading-none text-white" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(3rem, 7vw, 5.2rem)" }}>Temporada de premios</h2>
+          <p className="mx-auto mt-3 max-w-xl text-base leading-7" style={{ color: "#c1c1d0" }}>Elegí un panel. Encontrá los premios y seguí buscando; un panel vacío termina la gala.</p>
+        </header>
+
+        <section className="mx-auto mt-7 max-w-2xl rounded-3xl p-4 sm:p-7" style={{ background: "radial-gradient(circle at 50% 0%, rgba(251,191,36,0.14), transparent 48%), rgba(9,13,29,0.88)", border: "1px solid rgba(251,191,36,0.28)" }}>
+          <div className="mb-5 flex items-center justify-between gap-3 font-mono text-xs uppercase tracking-[0.14em]" style={{ color: "#d7d7e8" }}>
+            <span>Premios encontrados</span><span style={{ color: "#fbbf24" }}>{foundCount}/3</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3 sm:gap-5">
+            {gs.awardsSeasonBoard.map((prizeId, index) => {
+              const revealed = gs.awardsSeasonRevealed.includes(index);
+              const prize = prizeId ? DOC_PREMIOS.find((entry) => entry.id === prizeId) : undefined;
+              const image = prize ? getPrizeAssetSrc(prize.icon) : undefined;
+              return (
+                <motion.button
+                  key={index}
+                  type="button"
+                  disabled={revealed}
+                  onClick={() => onChoose(index)}
+                  whileHover={revealed ? {} : { scale: 1.035, y: -2 }}
+                  whileTap={revealed ? {} : { scale: 0.96 }}
+                  className="aspect-square overflow-hidden rounded-2xl p-2 transition-opacity disabled:cursor-default"
+                  style={{
+                    background: revealed ? (prize ? "linear-gradient(145deg, rgba(251,191,36,0.28), rgba(124,58,237,0.24))" : "rgba(71,85,105,0.34)") : "linear-gradient(145deg, #30215b, #12182d)",
+                    border: revealed ? `1px solid ${prize ? "rgba(251,191,36,0.68)" : "rgba(148,163,184,0.36)"}` : "1px solid rgba(192,132,252,0.42)",
+                    boxShadow: revealed ? "none" : "0 0 18px rgba(124,58,237,0.2)",
+                  }}
+                  aria-label={revealed ? (prize?.name ?? "Panel vacío") : `Panel ${index + 1}`}
+                >
+                  {revealed && prize ? (
+                    image ? <img src={image} alt={prize.name} className="h-full w-full object-contain" /> : <Award className="mx-auto h-full w-full p-3" style={{ color: "#fbbf24" }} />
+                  ) : revealed ? (
+                    <span className="font-mono text-xs uppercase tracking-wider" style={{ color: "#94a3b8" }}>Vacío</span>
+                  ) : (
+                    <span className="font-black" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(2.2rem, 7vw, 4rem)", color: "#e9d5ff" }}>?</span>
+                  )}
+                </motion.button>
+              );
+            })}
+          </div>
+        </section>
+      </motion.div>
+    </CareerScreenFrame>
+  );
+}
+
 function ScreenGameOver({ gs }: { gs: GameState }) {
   const rating = getFinalRating(gs.followers);
   const finalChannel = CHANNELS[gs.currentChannel] ?? FALLBACK_CHANNEL;
@@ -2858,17 +3000,66 @@ export default function App() {
     });
   }, []);
 
-  const handleSeasonContinue = useCallback(() => {
-    setGs((s) => {
+  const completeSeason = (s: GameState): GameState => {
       const hist = [...s.careerHistory];
       const idx = hist.findIndex((e) => e.channel === s.currentChannel);
       if (idx >= 0) hist[idx] = { ...hist[idx], seasons: hist[idx].seasons + 1 };
       else hist.push({ channel: s.currentChannel, seasons: 1 });
 
-      if (s.season >= SEASONS) return { ...s, careerHistory: hist, phase: "gameOver" };
+      const clearedAwardsSeason = {
+        awardsSeasonBoard: [] as (AwardsSeasonPrizeId | null)[],
+        awardsSeasonRevealed: [] as number[],
+        awardsSeasonCompleted: false,
+        awardsSeasonEndedByEmpty: false,
+      };
+      if (s.season >= SEASONS) return { ...s, ...clearedAwardsSeason, careerHistory: hist, phase: "gameOver" };
 
       const nextSeason = s.season + 1;
-      return { ...s, season: nextSeason, careerHistory: hist, phase: "transferMarket", isFirstMarket: false };
+      return { ...s, ...clearedAwardsSeason, season: nextSeason, careerHistory: hist, phase: "transferMarket", isFirstMarket: false };
+  };
+
+  const handleSeasonContinue = useCallback(() => {
+    setGs((s) => {
+      if (s.reputation > 60) {
+        const awardsSeasonBoard = shuffle<AwardsSeasonPrizeId | null>([
+          ...AWARDS_SEASON_PRIZE_IDS,
+          null, null, null, null, null, null,
+        ]);
+        return {
+          ...s,
+          phase: "awardsSeason",
+          awardsSeasonBoard,
+          awardsSeasonRevealed: [],
+          awardsSeasonCompleted: false,
+          awardsSeasonEndedByEmpty: false,
+        };
+      }
+      return completeSeason(s);
+    });
+  }, []);
+
+  const handleAwardsSeasonChoose = useCallback((index: number) => {
+    setGs((s) => {
+      if (s.phase !== "awardsSeason" || s.awardsSeasonCompleted || s.awardsSeasonRevealed.includes(index)) return s;
+      const prizeId = s.awardsSeasonBoard[index];
+      const awardsSeasonRevealed = [...s.awardsSeasonRevealed, index];
+
+      if (!prizeId) return { ...s, awardsSeasonRevealed, awardsSeasonCompleted: true, awardsSeasonEndedByEmpty: true };
+
+      const prize = DOC_PREMIOS.find((entry) => entry.id === prizeId);
+      if (!prize) return s;
+      const nextAwards = awardPrize(s.awardedAutomaticPrizes, prize, s.currentChannel, { forceAccumulable: true });
+      const prizeUnlocks = getAwardIncrements(s.awardedAutomaticPrizes, nextAwards);
+      const foundAllPrizes = AWARDS_SEASON_PRIZE_IDS.every((id) => awardsSeasonRevealed.some((revealedIndex) => s.awardsSeasonBoard[revealedIndex] === id));
+
+      return {
+        ...s,
+        awardedAutomaticPrizes: nextAwards,
+        pendingPrizeUnlocks: [...s.pendingPrizeUnlocks, ...prizeUnlocks],
+        awardsSeasonRevealed,
+        awardsSeasonCompleted: foundAllPrizes,
+        awardsSeasonEndedByEmpty: false,
+      };
     });
   }, []);
 
@@ -2879,6 +3070,24 @@ export default function App() {
   const handlePrizeUnlockContinue = useCallback(() => {
     setGs((s) => ({ ...s, pendingPrizeUnlocks: s.pendingPrizeUnlocks.slice(1) }));
   }, []);
+
+  const handleAwardsSeasonResultContinue = useCallback(() => {
+    setGs((s) => s.phase === "awardsSeason" && s.awardsSeasonEndedByEmpty ? completeSeason(s) : s);
+  }, []);
+
+  useEffect(() => {
+    if (gs.phase !== "awardsSeason" || !gs.awardsSeasonCompleted || gs.awardsSeasonEndedByEmpty || gs.pendingPrizeUnlocks.length > 0) return;
+    const timer = window.setTimeout(() => {
+      setGs((s) => s.phase === "awardsSeason" && s.awardsSeasonCompleted && s.pendingPrizeUnlocks.length === 0 ? completeSeason(s) : s);
+    }, 1600);
+    return () => window.clearTimeout(timer);
+  }, [gs.phase, gs.awardsSeasonCompleted, gs.awardsSeasonEndedByEmpty, gs.pendingPrizeUnlocks.length]);
+
+  const awardsSeasonResultPrizes = gs.awardsSeasonRevealed.flatMap((index) => {
+    const prizeId = gs.awardsSeasonBoard[index];
+    const prize = prizeId ? DOC_PREMIOS.find((entry) => entry.id === prizeId) : undefined;
+    return prize ? [prize] : [];
+  });
 
   return (
     <div className="min-h-screen bg-background text-foreground" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -2913,6 +3122,11 @@ export default function App() {
             <ScreenSeasonSummary gs={gs} onContinue={handleSeasonContinue} />
           </motion.div>
         )}
+        {gs.phase === "awardsSeason" && (
+          <motion.div key={`awards-${gs.season}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+            <ScreenAwardsSeason gs={gs} onChoose={handleAwardsSeasonChoose} />
+          </motion.div>
+        )}
         {gs.phase === "gameOver" && (
           <motion.div key="gameover" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.5 }}>
             <ScreenGameOver gs={gs} />
@@ -2922,6 +3136,9 @@ export default function App() {
       <AnimatePresence>
         {gs.pendingPrizeUnlocks[0] && (
           <PrizeUnlockModal prize={gs.pendingPrizeUnlocks[0]} onContinue={handlePrizeUnlockContinue} />
+        )}
+        {gs.phase === "awardsSeason" && gs.awardsSeasonCompleted && gs.awardsSeasonEndedByEmpty && gs.pendingPrizeUnlocks.length === 0 && (
+          <AwardsSeasonResultModal prizes={awardsSeasonResultPrizes} onContinue={handleAwardsSeasonResultContinue} />
         )}
       </AnimatePresence>
     </div>
