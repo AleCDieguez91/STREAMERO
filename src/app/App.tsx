@@ -2162,11 +2162,36 @@ function ScreenFirstContract({ gs, offers, onChoose }: { gs: GameState; offers: 
   );
 }
 
-function ScreenStandardTransferMarket({ gs, onChoose }: { gs: GameState; onChoose: (ch: Channel) => void }) {
+function ScreenNoTransferOffers({ gs, onContinue }: { gs: GameState; onContinue: () => void }) {
+  return (
+    <CareerScreenFrame gs={gs} progressCurrent={gs.season} progressTotal={SEASONS} progressLabel="Progreso de carrera" accent="#f59e0b">
+      <div className="p-4 sm:p-5 xl:p-6">
+        <section className="rounded-2xl p-6 text-center" style={{ background: "rgba(9,13,29,0.86)", border: "1px solid rgba(245,158,11,0.3)" }}>
+          <Info className="mx-auto" size={32} style={{ color: "#f59e0b" }} />
+          <h2 className="mt-4 font-black uppercase leading-none text-white" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(2.2rem, 5vw, 3.5rem)" }}>
+            No quedan contratos disponibles
+          </h2>
+          <p className="mx-auto mt-4 max-w-xl text-sm leading-6" style={{ color: "#c7c7d8" }}>
+            Todos los canales elegibles ya quedaron fuera de la carrera. Tu trayectoria finaliza de forma segura.
+          </p>
+          <motion.button type="button" onClick={onContinue} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+            className="mt-6 w-full rounded-xl py-4 font-black uppercase tracking-wide sm:w-auto sm:px-10"
+            style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.3rem", background: "linear-gradient(135deg, #f59e0b, #f97316)", color: "#fff", boxShadow: "0 0 24px rgba(245,158,11,0.28)" }}>
+            Ver resumen de carrera <Rocket className="ml-2 inline" size={20} />
+          </motion.button>
+        </section>
+      </div>
+    </CareerScreenFrame>
+  );
+}
+
+function ScreenStandardTransferMarket({ gs, onChoose, onNoOffers }: { gs: GameState; onChoose: (ch: Channel) => void; onNoOffers: () => void }) {
   const [offers] = useState<Channel[]>(() => buildOffers(gs.currentChannel, gs.isFirstMarket, gs.renderSold, gs.excludedChannels));
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const selectedInfo = selectedChannel ? CHANNELS[selectedChannel] ?? FALLBACK_CHANNEL : null;
   const isRenewal = selectedChannel === gs.currentChannel;
+
+  if (offers.length === 0) return <ScreenNoTransferOffers gs={gs} onContinue={onNoOffers} />;
 
   return (
     <CareerScreenFrame gs={gs} progressCurrent={gs.season} progressTotal={SEASONS} progressLabel="Progreso de carrera" accent="#f59e0b">
@@ -2224,7 +2249,7 @@ function ScreenStandardTransferMarket({ gs, onChoose }: { gs: GameState; onChoos
   );
 }
 
-function ScreenTransferMarket({ gs, onChoose }: { gs: GameState; onChoose: (ch: Channel) => void }) {
+function ScreenTransferMarket({ gs, onChoose, onNoOffers }: { gs: GameState; onChoose: (ch: Channel) => void; onNoOffers: () => void }) {
   // Lfunction ScreenTransferMarketa primera contratación conserva sus textos de introducción. Los mercados siguientes
   // usan las mismas tarjetas y confirmación, pero reciben ofertas calculadas con la carrera.
   const [firstOffers] = useState<Channel[]>(() => buildOffers(gs.currentChannel, gs.isFirstMarket, gs.renderSold, gs.excludedChannels));
@@ -2233,7 +2258,7 @@ function ScreenTransferMarket({ gs, onChoose }: { gs: GameState; onChoose: (ch: 
     return <ScreenFirstContract gs={gs} offers={firstOffers} onChoose={onChoose} />;
   }
 
-  return <ScreenStandardTransferMarket gs={gs} onChoose={onChoose} />;
+  return <ScreenStandardTransferMarket gs={gs} onChoose={onChoose} onNoOffers={onNoOffers} />;
 }
 
 function ScreenEvent({ gs, onChoose, onContinueAutomatic }: { gs: GameState; onChoose: (idx: number) => void; onContinueAutomatic: () => void }) {
@@ -2414,6 +2439,12 @@ function ScreenEventResult({ gs, onContinue }: { gs: GameState; onContinue: () =
   const ok = r.wasSuccess;
   const isForced = r.delta.specialOutcome === "forcedTransfer";
   const isChannelSold = isForced && r.eventTitle.includes("RENDER FUE VENDIDO");
+  const statusColor = isForced ? "#fb2c68" : ok ? "#22c55e" : "#f87171";
+  const statusLabel = isForced
+    ? (isChannelSold ? "Canal vendido" : "Contrato terminado")
+    : ok
+      ? "Decisión exitosa"
+      : "La decisión salió mal";
   const consequences = [
     { label: "Seguidores", value: r.delta.followers, suffix: "" },
     ...(r.delta.reputation ? [{ label: "Popularidad", value: r.delta.reputation, suffix: "%" }] : []),
@@ -2841,6 +2872,10 @@ export default function App() {
     });
   }, []);
 
+  const handleNoTransferOffers = useCallback(() => {
+    setGs((s) => ({ ...s, phase: "gameOver" }));
+  }, []);
+
   const handlePrizeUnlockContinue = useCallback(() => {
     setGs((s) => ({ ...s, pendingPrizeUnlocks: s.pendingPrizeUnlocks.slice(1) }));
   }, []);
@@ -2860,7 +2895,7 @@ export default function App() {
         )}
         {gs.phase === "transferMarket" && (
           <motion.div key={`mkt-${gs.season}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
-            <ScreenTransferMarket gs={gs} onChoose={handleChooseChannel} />
+            <ScreenTransferMarket gs={gs} onChoose={handleChooseChannel} onNoOffers={handleNoTransferOffers} />
           </motion.div>
         )}
         {gs.phase === "event" && gs.currentEvents[gs.eventIndex] && (
