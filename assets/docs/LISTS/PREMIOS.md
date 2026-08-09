@@ -15,6 +15,11 @@ NOMBRE: Premios Idolo
 ICONO: idolo.png
 TIPO: ANUAL
 
+ID: FAJENSE_DE_MANOS
+NOMBRE: Fajense de Manos
+ICONO: fajense.png
+TIPO: ANUAL
+
 
 ID: PLACA\_100K
 NOMBRE: Placa de Plata
