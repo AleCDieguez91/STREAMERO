@@ -166,3 +166,29 @@ CONSECUENCIAS:
 
 ==================================================…
 
+EVENTO: ORTERIX_002
+CANAL: ORTERIX
+APARICION: UNA_VEZ
+MOMENTO: [A PARTIR DE LA SEGUNDA TEMPORADA]
+RAREZA: RARO
+TITULO: COBRAR EN PARTES
+DESCRIPCION: Wario Gerpolini te ofrece pagarte el sueldo en 3 partes por cuestiones que ni él te sabe explicar.
+
+OPCION A: Aceptar
+SUBTITULO: "La plata no es tan importante"
+PROBABILIDAD: 25%
+SALE BIEN: Wario te va pagando como corresponde. Te dice que no va a volver a suceder.
+CONSECUENCIAS: +5 reputacion
+
+SALE MAL: Wario te va pagando pero cada vez aparecen mas descuentos.
+CONSECUENCIAS: +1 reputacion
+
+OPCION B: Rechazar.
+SUBTITULO: "Necesito la guita"
+PROBABILIDAD: 5%
+SALE BIEN: Wario te ve como una persona con convicciones firmes y decide ponerte en blanco.
+CONSECUENCIAS: +20 reputacion
+SALE MAL: Wario sonríe y te da una palmada en la espalda. Esa misma tarde recibís un whatsapp diciendo que rescinden de tus servicios.
+CONSECUENCIAS: [DIRECTO A MERCADO DE PASES. ORTERIX NO SALDRÁ MÁS DURANTE ESA PARTIDA]
+
+==================================================

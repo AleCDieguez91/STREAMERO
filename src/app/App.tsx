@@ -140,6 +140,7 @@ interface EventOption {
 }
 
 interface GameEvent {
+  id?: string;
   title: string;
   description: string;
   options?: EventOption[];
@@ -177,7 +178,7 @@ interface GameState {
   renderSold: boolean;
   usedFajenseRivals: string[];
   usedEventKeys: string[];
-  excludedChannel?: Channel | null;
+  excludedChannels: Channel[];
   awardedAutomaticPrizes: AwardedPrize[];
 }
 
@@ -352,7 +353,13 @@ function extractOutcomeData(block: string, outcomeLabel: "SALE BIEN" | "SALE MAL
   }
 
   const message = [headerText, ...narrativeLines].filter(Boolean).join(" ").trim();
-  const consequences = combineConsequences(parseConsequenceText(consequenceLines.join("\n")));
+  const consequenceText = consequenceLines.join("\n");
+  const consequences = {
+    ...combineConsequences(parseConsequenceText(consequenceText)),
+    ...( /DIRECTO\s+A\s+MERCADO\s+DE\s+PASES/i.test(consequenceText)
+      ? { specialOutcome: "forcedTransfer" as const }
+      : {}),
+  };
   return { message, consequences };
 }
 
@@ -361,11 +368,12 @@ function normalizeOptionText(text: string): string {
 }
 
 function parseAutomaticEventsFromMarkdown(markdown: string): GameEvent[] {
-  const sections = markdown.split(/\n\s*EVENTO:/i).filter(Boolean);
+  const sections = markdown.split(/(?=^\s*EVENTO:)/mi).filter((section) => /^\s*EVENTO:/mi.test(section));
   return sections.flatMap((section) => {
     const normalized = section.trim();
     if (!normalized) return [];
     const lines = normalized.split(/\r?\n/).map((line) => line.trim());
+    const id = lines.find((line) => /^EVENTO:/i.test(line))?.replace(/^EVENTO:\s*/i, "").trim();
     const typeLine = lines.find((line) => /^TIPO:/i.test(line));
     if (!typeLine || !/AUTOMATICO/i.test(typeLine)) return [];
 
@@ -405,21 +413,21 @@ function parseAutomaticEventsFromMarkdown(markdown: string): GameEvent[] {
         return { followers: value, reputation: 0, message: "" };
       });
 
-    return [{ title, description, type: "automatic", consequences, appearance }];
+    return [{ id, title, description, type: "automatic", consequences, appearance }];
   });
 }
 
 function parseEventsFromMarkdown(markdown: string): GameEvent[] {
-  const sections = markdown.split(/\n\s*EVENTO:/i).filter(Boolean);
+  const sections = markdown.split(/(?=^\s*EVENTO:)/mi).filter((section) => /^\s*EVENTO:/mi.test(section));
   return sections.flatMap((section) => {
     const normalized = section.trim();
     if (!normalized) return [];
     const lines = normalized.split(/\r?\n/).map((l) => l.trim());
+    const id = lines.find((line) => /^EVENTO:/i.test(line))?.replace(/^EVENTO:\s*/i, "").trim();
 
     const title = lines.find((line) => /^T[ÍI]TULO:/i.test(line))?.replace(/^T[ÍI]TULO:\s*/i, "")?.trim() ?? "Evento";
-    const description = lines.find((line) => /^DESCRIPCI.|^DESCRIPCIÓN:/i.test(line))
-      ?.replace(/^DESCRIPCI.:\s*/i, "")
-      ?.replace(/^DESCRIPCIÓN:\s*/i, "") ?? "";
+    const description = lines.find((line) => /^DESCRIPCI(?:ÓN|ON):/i.test(line))
+      ?.replace(/^DESCRIPCI(?:ÓN|ON):\s*/i, "") ?? "";
 
     const appearanceLine = lines.find((line) => /^APARICION:/i.test(line));
     const appearance = appearanceLine?.replace(/^APARICION:\s*/i, "").trim().toUpperCase() === "UNA_VEZ"
@@ -500,6 +508,7 @@ function parseEventsFromMarkdown(markdown: string): GameEvent[] {
       });
 
     const ev: GameEvent = {
+      id,
       title,
       description,
       type,
@@ -514,7 +523,7 @@ function parseEventsFromMarkdown(markdown: string): GameEvent[] {
 
 const DOC_EVENTS: Partial<Record<Channel, GameEvent[]>> = {
   ALGA: parseAutomaticEventsFromMarkdown(algaEventsMd),
-  ORTERIX: parseAutomaticEventsFromMarkdown(orterixEventsMd),
+  ORTERIX: parseEventsFromMarkdown(orterixEventsMd).filter((event) => event.id === "ORTERIX_002"),
   RENDER: parseAutomaticEventsFromMarkdown(renderEventsMd),
   "RUZU TV": parseEventsFromMarkdown(ruzuEventsMd),
 };
@@ -537,7 +546,11 @@ async function refreshDocEvents() {
       const res = await fetch(url);
       if (!res.ok) continue;
       const text = await res.text();
-      const parsed = channel === "RUZU TV" ? parseEventsFromMarkdown(text) : parseAutomaticEventsFromMarkdown(text);
+      const parsed = channel === "RUZU TV"
+        ? parseEventsFromMarkdown(text)
+        : channel === "ORTERIX"
+          ? parseEventsFromMarkdown(text).filter((event) => event.id === "ORTERIX_002")
+          : parseAutomaticEventsFromMarkdown(text);
       // mutate DOC_EVENTS in-place so pickEvents and other logic see updates
       (DOC_EVENTS as any)[channel] = parsed;
     } catch (err) {
@@ -1279,19 +1292,15 @@ function pickEvents(channel: Channel, count: number, renderSold = false, usedEve
   return [...selected, forcedLastEvent];
 }
 
-function buildOffers(current: Channel, isFirst: boolean, renderSold = false, excludedChannel: Channel | null = null): Channel[] {
+function buildOffers(current: Channel, isFirst: boolean, renderSold = false, excludedChannels: Channel[] = []): Channel[] {
   if (isFirst) {
-    return shuffle([...ALL_CHANNELS]).slice(0, 4);
+    return shuffle(ALL_CHANNELS.filter((channel) => !(renderSold && channel === "RENDER") && !excludedChannels.includes(channel))).slice(0, 4);
   }
 
-  const availableChannels = ALL_CHANNELS.filter((c) => !(renderSold && c === "RENDER") && c !== excludedChannel);
+  const availableChannels = ALL_CHANNELS.filter((channel) => !(renderSold && channel === "RENDER") && !excludedChannels.includes(channel));
   const others = shuffle(availableChannels.filter((c) => c !== current));
-  // Ensure the current channel is always included as a renewal option even
-  // if it matches `excludedChannel` (excludedChannel should only prevent
-  // offering that channel to *new* candidates, not the renewal of the
-  // player's current contract).
   const candidates = [current, ...others.slice(0, 3)];
-  return candidates.filter((c) => !(renderSold && c === "RENDER") && (c !== excludedChannel || c === current));
+  return candidates.filter((channel) => !(renderSold && channel === "RENDER") && !excludedChannels.includes(channel));
 }
 
 function getFinalRating(followers: number) {
@@ -1329,7 +1338,7 @@ const INIT: GameState = {
   renderSold: false,
   usedFajenseRivals: [],
   usedEventKeys: [],
-  excludedChannel: null,
+  excludedChannels: [],
   awardedAutomaticPrizes: [],
 };
 
@@ -1439,11 +1448,11 @@ function ScreenIntro({ onNext }: { onNext: () => void }) {
         </div>
 
         <div className="text-left space-y-3.5 text-sm leading-relaxed" style={{ color: "#9090c0" }}>
-          <p>Durante años transmitiste desde tu casa por simple diversión.</p>
+           <p>Durante años transmitiste desde tu casa por simple diversión.</p>
           <p>Con el tiempo empezaste a formar una pequeña comunidad. No eras el streamer más grande, pero quienes te seguían siempre estaban ahí.</p>
           <p>Un par de clips comenzaron a circular y tu nombre empezó a sonar.</p>
-          <p className="font-semibold" style={{ color: "#c4c4e8" }}>Ese crecimiento llamó la atención de un canal de streaming.</p>
-          <p className="font-bold text-base" style={{ color: "#eaeaff" }}>Hoy recibiste tu primera propuesta.</p>
+          <p className="font-semibold" style={{ color: "#c4c4e8" }}>Ese crecimiento llamó la atención de varios canales de streaming.</p>
+          <p className="font-bold text-base" style={{ color: "#eaeaff" }}>Hoy recibiste tus primeras propuestas.</p>
           <p className="font-bold" style={{ color: "#a78bfa" }}>Tu carrera profesional está a punto de comenzar.</p>
         </div>
 
@@ -1491,7 +1500,7 @@ function ScreenNaming({ onConfirm }: { onConfirm: (name: string) => void }) {
 }
 
 function ScreenTransferMarket({ gs, onChoose }: { gs: GameState; onChoose: (ch: Channel) => void }) {
-  const offers = buildOffers(gs.currentChannel, gs.isFirstMarket, gs.renderSold, gs.excludedChannel ?? null);
+  const offers = buildOffers(gs.currentChannel, gs.isFirstMarket, gs.renderSold, gs.excludedChannels);
 
   return (
     <div className="min-h-screen flex flex-col px-6 pt-24 pb-12 relative">
@@ -1761,6 +1770,7 @@ function ScreenEventResult({ gs, onContinue }: { gs: GameState; onContinue: () =
   const ch = CHANNELS[gs.currentChannel] ?? FALLBACK_CHANNEL;
   const ok = r.wasSuccess;
   const isForced = r.delta.specialOutcome === "forcedTransfer";
+  const isChannelSold = isForced && r.eventTitle.includes("RENDER FUE VENDIDO");
   const consequences = [
     { icon: "👥", label: "Seguidores", value: r.delta.followers },
     ...(r.delta.reputation ? [{ icon: "🏅", label: "Reputación", value: r.delta.reputation }] : []),
@@ -1779,11 +1789,11 @@ function ScreenEventResult({ gs, onContinue }: { gs: GameState; onContinue: () =
           <motion.div initial={{ scale: 0, rotate: -15 }} animate={{ scale: 1, rotate: 0 }}
             transition={{ type: "spring", stiffness: 320, damping: 22, delay: 0.1 }}
             className="text-6xl mb-3">
-            {isForced ? "🏚️" : ok ? "🔥" : "💧"}
+            {isForced ? (isChannelSold ? "🏚️" : "📜💥") : ok ? "🔥" : "💧"}
           </motion.div>
           <p className="font-mono text-xs tracking-[0.35em] uppercase mb-2"
             style={{ color: isForced ? "#fb7185" : ok ? "#4ade80" : "#f87171" }}>
-            {isForced ? "Canal vendido" : ok ? "¡Éxito!" : "Fracaso"}
+            {isForced ? (isChannelSold ? "Canal vendido" : "Te echaron") : ok ? "¡Éxito!" : "Fracaso"}
           </p>
           <h2 className="font-black text-3xl mb-1" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
             {r.eventTitle.replace("⚡ ", "")}
@@ -1992,17 +2002,6 @@ function ScreenGameOver({ gs }: { gs: GameState }) {
 export default function App() {
   const [gs, setGs] = useState<GameState>(INIT);
 
-  useEffect(() => {
-    try {
-      const ex = localStorage.getItem("streamero.excludedChannel");
-      if (ex && ALL_CHANNELS.includes(ex as Channel)) {
-        setGs((s) => ({ ...s, excludedChannel: ex as Channel }));
-      }
-    } catch (e) {
-      // ignore
-    }
-  }, []);
-
   // Re-read markdown event files at startup so newly added automatic
   // events become available without changing the parser or selection logic.
   useEffect(() => {
@@ -2101,14 +2100,21 @@ export default function App() {
         if (idx >= 0) hist[idx] = { ...hist[idx], seasons: hist[idx].seasons + 1 };
         else hist.push({ channel: s.currentChannel, seasons: 1 });
         const nextSeason = Math.min(s.season + 1, SEASONS + 1);
-        // Exclude the channel that just ejected the player from future market offers
-        const excluded = s.currentChannel;
+        // A channel that fires the player is never eligible again in this career.
+        const excludedChannels = [...new Set([...s.excludedChannels, s.currentChannel])];
+        const renderWasSold = s.lastResult.eventTitle.includes("RENDER FUE VENDIDO");
         if (s.season >= SEASONS) {
-          try { localStorage.setItem("streamero.excludedChannel", excluded); } catch (e) {}
-          return { ...s, careerHistory: hist, renderSold: true, excludedChannel: excluded, phase: "gameOver" };
+          return { ...s, careerHistory: hist, renderSold: s.renderSold || renderWasSold, excludedChannels, phase: "gameOver" };
         }
-        try { localStorage.setItem("streamero.excludedChannel", excluded); } catch (e) {}
-        return { ...s, season: nextSeason, careerHistory: hist, renderSold: true, excludedChannel: excluded, phase: "transferMarket", isFirstMarket: false };
+        return {
+          ...s,
+          season: nextSeason,
+          careerHistory: hist,
+          renderSold: s.renderSold || renderWasSold,
+          excludedChannels,
+          phase: "transferMarket",
+          isFirstMarket: false,
+        };
       }
 
       if (s.eventIndex < EVENTS_PER_SEASON - 1) return { ...s, phase: "event", eventIndex: s.eventIndex + 1 };
