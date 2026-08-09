@@ -1582,10 +1582,6 @@ function PixelAvatarPlaceholder({ variant }: { variant: AvatarChoice }) {
   );
 }
 
-<<<<<<< ours
-function ScreenTransferMarket({ gs, onChoose }: { gs: GameState; onChoose: (ch: Channel) => void }) {
-  const offers = buildOffers(gs.currentChannel, gs.isFirstMarket, gs.renderSold, gs.excludedChannels);
-=======
 function ScreenNaming({ onConfirm }: { onConfirm: (name: string, profile: StreamerProfile) => void }) {
   const [name, setName] = useState("");
   const [avatar, setAvatar] = useState<AvatarChoice | null>(null);
@@ -1603,7 +1599,6 @@ function ScreenNaming({ onConfirm }: { onConfirm: (name: string, profile: Stream
       avatar,
     });
   };
->>>>>>> theirs
 
   return (
     <div className="min-h-screen px-4 py-8 sm:px-6 lg:py-12 relative overflow-hidden">
@@ -2230,7 +2225,7 @@ function ScreenStandardTransferMarket({ gs, onChoose }: { gs: GameState; onChoos
 }
 
 function ScreenTransferMarket({ gs, onChoose }: { gs: GameState; onChoose: (ch: Channel) => void }) {
-  // La primera contratación conserva sus textos de introducción. Los mercados siguientes
+  // Lfunction ScreenTransferMarketa primera contratación conserva sus textos de introducción. Los mercados siguientes
   // usan las mismas tarjetas y confirmación, pero reciben ofertas calculadas con la carrera.
   const [firstOffers] = useState<Channel[]>(() => buildOffers(gs));
 
@@ -2419,45 +2414,18 @@ function ScreenEventResult({ gs, onContinue }: { gs: GameState; onContinue: () =
   const ok = r.wasSuccess;
   const isForced = r.delta.specialOutcome === "forcedTransfer";
   const isChannelSold = isForced && r.eventTitle.includes("RENDER FUE VENDIDO");
-<<<<<<< ours
-=======
-  const statusColor = isForced ? "#fb2c68" : ok ? "#22c55e" : "#f87171";
-  const statusLabel = isForced ? (isChannelSold ? "Canal vendido" : "Contrato terminado") : ok ? "Decisión exitosa" : "La decisión salió mal";
->>>>>>> theirs
   const consequences = [
     { label: "Seguidores", value: r.delta.followers, suffix: "" },
     ...(r.delta.reputation ? [{ label: "Popularidad", value: r.delta.reputation, suffix: "%" }] : []),
   ];
 
   return (
-<<<<<<< ours
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 pt-20 pb-12 relative">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full"
-          style={{ background: `radial-gradient(circle, ${isForced ? "rgba(159,18,57,0.12)" : ok ? "rgba(34,197,94,0.09)" : "rgba(239,68,68,0.09)"} 0%, transparent 68%)` }} />
-      </div>
-
-      <motion.div initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-        className="max-w-md w-full flex flex-col items-center gap-7 relative z-10">
-        <div className="text-center">
-          <motion.div initial={{ scale: 0, rotate: -15 }} animate={{ scale: 1, rotate: 0 }}
-            transition={{ type: "spring", stiffness: 320, damping: 22, delay: 0.1 }}
-            className="text-6xl mb-3">
-            {isForced ? (isChannelSold ? "🏚️" : "📜💥") : ok ? "🔥" : "💧"}
-          </motion.div>
-          <p className="font-mono text-xs tracking-[0.35em] uppercase mb-2"
-            style={{ color: isForced ? "#fb7185" : ok ? "#4ade80" : "#f87171" }}>
-            {isForced ? (isChannelSold ? "Canal vendido" : "Te echaron") : ok ? "¡Éxito!" : "Fracaso"}
-          </p>
-          <h2 className="font-black text-3xl mb-1" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-=======
     <CareerScreenFrame gs={gs} progressCurrent={gs.eventIndex + 1} progressTotal={EVENTS_PER_SEASON} progressLabel="Progreso del contrato" accent={statusColor}>
       <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.42 }} className="p-4 sm:p-5 xl:p-6">
         <header>
           <p className="font-mono text-xs uppercase tracking-[0.24em]" style={{ color: statusColor }}>Resultado del período</p>
           <h2 className="mt-2 font-black uppercase leading-none text-white"
             style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(2.6rem, 5vw, 4.2rem)" }}>
->>>>>>> theirs
             {r.eventTitle.replace("⚡ ", "")}
           </h2>
           <p className="mt-2 text-base" style={{ color: "#aaaac0" }}>Elegiste: <strong className="text-white">“{normalizeOptionText(r.optionText)}”</strong></p>
