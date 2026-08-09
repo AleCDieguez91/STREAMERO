@@ -1,5 +1,16 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { Award, CheckCircle2, Info, Rocket, Target, Users } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group";
+import {
+  calculateChannelInterest,
+  getInterestThreshold,
+  scaleOutcomeByReach,
+  type ContractEvaluation,
+  type StreamerAffinityProfile,
+  type StreamerType,
+} from "./game/contract-algorithm";
+import { evaluateChannelForStreamer } from "./game/channel-affinities";
 import algaLogo from "../../assets/logos/alga.png";
 import assLogo from "../../assets/logos/ass.png";
 import caranchoLogo from "../../assets/logos/carancho.png";
@@ -19,9 +30,10 @@ import premiosMd from "../../assets/docs/LISTS/PREMIOS.md?raw";
 interface GamePrize {
   id: string;
   name: string;
-  type: "AUTOMATICO" | "ANUAL";
+  type: "AUTOMATICO" | "ANUAL" | "ESPECIAL";
   icon: string;
   requirement?: string;
+  accumulable?: boolean;
   followersRequirement?: number;
 }
 
@@ -29,6 +41,7 @@ interface AwardedPrize {
   id: string;
   name: string;
   icon: string;
+  channel: Channel;
   requirement?: string;
   count: number;
 }
@@ -58,15 +71,17 @@ function parsePrizesFromMarkdown(markdown: string): GamePrize[] {
     const nameLine = lines.find((line) => /^NOMBRE:/i.test(line));
     const typeLine = lines.find((line) => /^TIPO:/i.test(line));
     const iconLine = lines.find((line) => /^ICONO:/i.test(line));
+    const accumulableLine = lines.find((line) => /^ACUMULABLE:/i.test(line));
     const requirementLine = lines.find((line) => /^REQUISITO:/i.test(line));
 
     const id = normalizePrizeToken((idLine ?? "").replace(/^ID:\s*|^PREMIO:\s*/i, ""));
     const name = (nameLine ?? "").replace(/^NOMBRE:\s*/i, "").trim();
     const rawType = (typeLine ?? "").replace(/^TIPO:\s*/i, "").trim().toUpperCase();
     const icon = normalizePrizeToken((iconLine ?? "").replace(/^ICONO:\s*/i, ""));
+    const accumulable = /^(SI|S[IÍ]|YES|TRUE)$/i.test((accumulableLine ?? "").replace(/^ACUMULABLE:\s*/i, "").trim());
     const requirement = (requirementLine ?? "").replace(/^REQUISITO:\s*/i, "").trim();
 
-    const normalizedType = rawType === "AUTOMATICO" || rawType === "ANUAL" ? rawType : undefined;
+    const normalizedType = rawType === "AUTOMATICO" || rawType === "ANUAL" || rawType === "ESPECIAL" ? rawType : undefined;
 
     if (!id || !name || !normalizedType || !icon) return [];
 
@@ -75,6 +90,7 @@ function parsePrizesFromMarkdown(markdown: string): GamePrize[] {
       name,
       type: normalizedType,
       icon,
+      accumulable,
       ...(requirement ? { requirement } : {}),
       followersRequirement: parseRequirementThreshold(requirement),
     }];
@@ -82,26 +98,69 @@ function parsePrizesFromMarkdown(markdown: string): GamePrize[] {
 }
 
 const DOC_PREMIOS: GamePrize[] = parsePrizesFromMarkdown(premiosMd);
+const PRIZE_ASSET_IMPORTS = import.meta.glob("../../assets/premios/*.png", { eager: true, import: "default" }) as Record<string, string>;
+// Reemplazar por la ruta/import del PNG definitivo cuando esté disponible.
 
-function awardAutomaticPrizes(followers: number, currentAwards: AwardedPrize[] = []): AwardedPrize[] {
-  const awards = [...currentAwards];
+function getPrizeAssetSrc(icon: string): string | undefined {
+  return PRIZE_ASSET_IMPORTS[`../../assets/premios/${icon}`];
+}
+
+function awardAutomaticPrizes(
+  followers: number,
+  currentAwards: AwardedPrize[] = [],
+  channel: Channel,
+): AwardedPrize[] {
+  let awards = [...currentAwards];
 
   for (const prize of DOC_PREMIOS) {
     if (prize.type !== "AUTOMATICO") continue;
     if (prize.followersRequirement === undefined) continue;
-    if (awards.some((entry) => entry.id === prize.id)) continue;
     if (followers < prize.followersRequirement) continue;
 
-    awards.push({
-      id: prize.id,
-      name: prize.name,
-      icon: prize.icon,
-      requirement: prize.requirement,
-      count: 1,
-    });
+    awards = awardPrize(awards, prize, channel);
   }
 
   return awards;
+}
+
+function awardPrize(currentAwards: AwardedPrize[], prize: GamePrize, channel: Channel): AwardedPrize[] {
+  const existing = currentAwards.find((entry) => entry.id === prize.id);
+
+  if (existing) {
+    if (!prize.accumulable) return currentAwards;
+    return currentAwards.map((entry) => entry.id === prize.id ? { ...entry, count: entry.count + 1 } : entry);
+  }
+
+  return [...currentAwards, {
+    id: prize.id,
+    name: prize.name,
+    icon: prize.icon,
+    channel,
+    requirement: prize.requirement,
+    count: 1,
+  }];
+}
+
+function getAwardIncrements(previousAwards: AwardedPrize[], nextAwards: AwardedPrize[]): AwardedPrize[] {
+  return nextAwards.flatMap((prize) => {
+    const previousCount = previousAwards.find((entry) => entry.id === prize.id)?.count ?? 0;
+    const incrementCount = prize.count - previousCount;
+    return incrementCount > 0
+      ? Array.from({ length: incrementCount }, (_, index) => ({ ...prize, count: previousCount + index + 1 }))
+      : [];
+  });
+}
+
+function awardSpecialPrizesForSuccessfulEvent(
+  eventId: string | undefined,
+  currentAwards: AwardedPrize[],
+  channel: Channel,
+): AwardedPrize[] {
+  if (!eventId) return currentAwards;
+
+  return DOC_PREMIOS
+    .filter((prize) => prize.type === "ESPECIAL" && prize.accumulable && normalizePrizeToken(prize.requirement ?? "").includes(eventId))
+    .reduce((awards, prize) => awardPrize(awards, prize, channel), currentAwards);
 }
 
 type Phase =
@@ -112,6 +171,22 @@ type Phase =
   | "eventResult"
   | "seasonSummary"
   | "gameOver";
+
+type AvatarChoice = "avatar-a" | "avatar-b";
+type Personality = "PICANTE" | "CHILL" | "CARISMATICO" | "SESEUDO";
+
+const PERSONALITIES: Record<Personality, { emoji: string; label: string }> = {
+  PICANTE: { emoji: "🔥", label: "Picante" },
+  CHILL: { emoji: "😎", label: "Chill" },
+  CARISMATICO: { emoji: "😂", label: "Carismático" },
+  SESEUDO: { emoji: "🧠", label: "Sesudo" },
+};
+
+interface StreamerProfile {
+  streamerType: StreamerType;
+  personality: Personality;
+  avatar: AvatarChoice;
+}
 
 type Channel =
   | "ORTERIX"
@@ -165,6 +240,7 @@ interface LastResult {
 interface GameState {
   phase: Phase;
   streamerName: string;
+  streamerProfile: StreamerProfile | null;
   season: number;
   eventIndex: number;
   currentChannel: Channel;
@@ -174,12 +250,18 @@ interface GameState {
   currentEvents: GameEvent[];
   lastResult: LastResult | null;
   seasonAccum: { followers: number };
+  seasonRepercussionFollowers: number | null;
+  seasonRepercussionAwardedFor: number | null;
   isFirstMarket: boolean;
   renderSold: boolean;
   usedFajenseRivals: string[];
   usedEventKeys: string[];
   excludedChannels: Channel[];
   awardedAutomaticPrizes: AwardedPrize[];
+  pendingPrizeUnlocks: AwardedPrize[];
+  recentPerformance: number;
+  contractPerformanceTotal: number;
+  contractPerformancePeriods: number;
 }
 
 const EVENTS_PER_SEASON = 4;
@@ -301,6 +383,39 @@ const ALL_CHANNELS: Channel[] = [
 const FALLBACK_CHANNEL = CHANNELS["ORTERIX"];
 function ch(name: Channel): ChannelInfo {
   return CHANNELS[name] ?? FALLBACK_CHANNEL;
+}
+
+function toStreamerAffinity(profile: StreamerProfile | null): StreamerAffinityProfile {
+  // El perfil nulo solo puede aparecer antes de completar la creación del jugador.
+  // El valor neutral mantiene seguras las vistas de desarrollo y los estados antiguos.
+  if (!profile) {
+    return {
+      streamerType: "Reacción",
+    };
+  }
+
+  return {
+    streamerType: profile.streamerType,
+  };
+}
+
+function getContractEvaluation(gs: GameState, channel: Channel): ContractEvaluation {
+  return evaluateChannelForStreamer(toStreamerAffinity(gs.streamerProfile), channel);
+}
+
+function updateRecentPerformance(gs: GameState, periodScore: number) {
+  const contractPerformanceTotal = (gs.contractPerformanceTotal ?? 0) + periodScore;
+  const contractPerformancePeriods = (gs.contractPerformancePeriods ?? 0) + 1;
+
+  return {
+    contractPerformanceTotal,
+    contractPerformancePeriods,
+    recentPerformance: Math.round(contractPerformanceTotal / contractPerformancePeriods),
+  };
+}
+
+function calculateSeasonRepercussionFollowers(seasonFollowers: number): number {
+  return Math.max(0, Math.round(seasonFollowers * 0.25));
 }
 
 // ─── Events ───────────────────────────────────────────────────────────────────
@@ -626,13 +741,14 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       ],
     },
     {
+      id: "ORTERIX_001",
       title: "Fajense de Manos",
       description: "Azuquita Rodrigues organiza en el Luna Park un evento de boxeo con streamers e influencers. Este año tu rival será {RIVAL}.",
       forceAsLast: true,
       options: [
         { text: "Entrenar a fondo", detail: "A darlo todo", successChance: 0.50,
           success: { followers: 2000, money: 0, message: "Noqueas a {RIVAL} en el primer Round. Alzas el cinto con orgullo" },
-          failure: { followers: -6000, money: 0, message: "Te pasaste un poco y {RIVAL} termina internado. En las redes te llaman \"Asesino\", el cinto te lo mandan por correo 10 días después." } },
+          failure: { followers: -5000, reputation: -5, message: "Te pasaste un poco y {RIVAL} termina internado.\nEn redes te llaman \"Asesino\". El cinturón se lo dan a tu rival para fomentar el Fair Play." } },
         { text: "Apenas entrenas", detail: "Total es todo show", successChance: 0.50,
           success: { followers: 2000, money: 0, message: "Ninguno de los 2 emboca una piña pero el público se caga de risa. Ganás por puntos." },
           failure: { followers: -1000, money: 0, message: "Te quedás sin aire al minuto de pelea, {RIVAL} no perdona y te noquea. Te boludean en twitter por semanas" } },
@@ -1325,6 +1441,7 @@ function fmt(n: number): string {
 const INIT: GameState = {
   phase: "intro",
   streamerName: "",
+  streamerProfile: null,
   season: 1,
   eventIndex: 0,
   currentChannel: "ORTERIX",
@@ -1334,90 +1451,28 @@ const INIT: GameState = {
   currentEvents: [],
   lastResult: null,
   seasonAccum: { followers: 0 },
+  seasonRepercussionFollowers: null,
+  seasonRepercussionAwardedFor: null,
   isFirstMarket: true,
   renderSold: false,
   usedFajenseRivals: [],
   usedEventKeys: [],
   excludedChannels: [],
   awardedAutomaticPrizes: [],
+  pendingPrizeUnlocks: [],
+  recentPerformance: 50,
+  contractPerformanceTotal: 0,
+  contractPerformancePeriods: 0,
 };
 
 // ─── UI Primitives ────────────────────────────────────────────────────────────
 
-function Delta({ v }: { v: number }) {
+function Delta({ v, suffix = "" }: { v: number; suffix?: string }) {
   if (v === 0) return <span className="font-mono" style={{ color: "#4b5563", fontSize: "1.05rem", fontWeight: 700 }}>—</span>;
   return (
     <span className="font-mono" style={{ color: v > 0 ? "#4ade80" : "#f87171", fontSize: "1.05rem", fontWeight: 700 }}>
-      {v > 0 ? "+" : "-"}{fmt(v)}
+      {v > 0 ? "+" : ""}{fmt(v)}{suffix}
     </span>
-  );
-}
-
-function Pips({ n, max, color }: { n: number; max: number; color: string }) {
-  return (
-    <div className="flex gap-0.5">
-      {Array.from({ length: max }, (_, i) => (
-        <div key={i} className="w-1.5 h-1.5 rounded-full" style={{ background: i < n ? color : "rgba(255,255,255,0.1)" }} />
-      ))}
-    </div>
-  );
-}
-
-// ─── HUD ──────────────────────────────────────────────────────────────────────
-
-function HUD({ gs }: { gs: GameState }) {
-  const ch = CHANNELS[gs.currentChannel] ?? FALLBACK_CHANNEL;
-  return (
-    <div className="fixed top-0 left-0 right-0 z-50"
-      style={{ background: "rgba(7,7,14,0.9)", borderBottom: "1px solid rgba(124,58,237,0.2)", backdropFilter: "blur(16px)" }}>
-      <div className="max-w-3xl mx-auto px-4 py-2.5 flex items-center justify-between gap-4 flex-wrap">
-        {/* Brand + channel */}
-        <div className="flex items-center gap-3 min-w-0 shrink-0">
-          <span className="font-black text-sm tracking-widest" style={{ fontFamily: "'Barlow Condensed', sans-serif", color: "#7c3aed" }}>
-            STREAMERO
-          </span>
-          {!gs.isFirstMarket && (
-            <>
-              <span style={{ color: "#2a2a40" }}>|</span>
-              <span className="font-bold text-xs tracking-widest truncate max-w-[120px]"
-                style={{ fontFamily: "'Barlow Condensed', sans-serif", color: ch.accent }}>
-                {ch.shortName}
-              </span>
-            </>
-          )}
-          {gs.streamerName && (
-            <>
-              <span style={{ color: "#2a2a40" }}>|</span>
-              <span className="text-xs font-mono truncate max-w-[80px]" style={{ color: "#7070a0" }}>{gs.streamerName}</span>
-            </>
-          )}
-        </div>
-
-        {/* Season dots */}
-        <div className="flex items-center gap-1 shrink-0">
-          {Array.from({ length: SEASONS }, (_, i) => (
-            <div key={i} className="rounded-full transition-all duration-300"
-              style={{
-                width: i === gs.season - 1 ? 8 : 5,
-                height: i === gs.season - 1 ? 8 : 5,
-                background: i < gs.season - 1 ? "#7c3aed" : i === gs.season - 1 ? ch.accent : "#1e1e3a",
-                border: i === gs.season - 1 ? `1px solid ${ch.color}` : "none",
-              }} />
-          ))}
-          <span className="ml-1 font-mono text-xs" style={{ color: "#5050a0" }}>T{gs.season}/{SEASONS}</span>
-        </div>
-
-        {/* Stats */}
-        <div className="flex items-center gap-5 shrink-0">
-          <div className="text-center">
-            <p className="font-mono text-xs" style={{ color: "#7070a0" }}>👥 {fmt(gs.followers)}</p>
-          </div>
-          <div className="text-center">
-            <p className="font-mono text-xs" style={{ color: "#7070a0" }}>🏅 {gs.reputation}</p>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -1466,301 +1521,894 @@ function ScreenIntro({ onNext }: { onNext: () => void }) {
   );
 }
 
-function ScreenNaming({ onConfirm }: { onConfirm: (name: string) => void }) {
-  const [val, setVal] = useState("");
-  const submit = () => { if (val.trim()) onConfirm(val.trim()); };
+function PixelAvatarPlaceholder({ variant }: { variant: AvatarChoice }) {
+  // Estos patrones son marcadores temporales dibujados como una cuadrícula de píxeles.
+  // Cuando estén disponibles los avatares definitivos, este componente se puede reemplazar
+  // por una etiqueta <img> sin modificar la selección ni los datos guardados en la partida.
+  const patterns: Record<AvatarChoice, string[]> = {
+    "avatar-a": [
+      "....BBBB....",
+      "...BBBBBB...",
+      "...BSSSSB...",
+      "...SSSSSS...",
+      "...S.SS.S...",
+      "...SSSSSS...",
+      "....SSSS....",
+      "...RRRRRR...",
+      "..RRRRRRRR..",
+      "..RRRRRRRR..",
+    ],
+    "avatar-b": [
+      "....PPPP....",
+      "...PPPPPP...",
+      "...PSSSSP...",
+      "..PPSSSSPP..",
+      "..P.SSSS.P..",
+      "..PSSSSSSP..",
+      "...PSSSSP...",
+      "...CCCCCC...",
+      "..CCCCCCCC..",
+      "..CCCCCCCC..",
+    ],
+  };
+  const colors: Record<string, string> = {
+    B: "#38bdf8",
+    P: "#f472b6",
+    S: "#f1b98a",
+    R: "#7c3aed",
+    C: "#db2777",
+  };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-6">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
-        className="max-w-sm w-full flex flex-col gap-8 items-center text-center">
-        <div>
-          <p className="font-mono text-xs tracking-[0.3em] mb-2" style={{ color: "#7070a0" }}>ANTES DE EMPEZAR</p>
-          <h2 className="font-black text-4xl" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>¿Cómo te llaman?</h2>
-          <p className="text-sm mt-2" style={{ color: "#7070a0" }}>Tu nombre de streamer. Con ese nombre vas a construir toda tu carrera.</p>
+    <div
+      aria-hidden="true"
+      className="grid h-28 w-32 overflow-hidden rounded-xl p-3"
+      style={{
+        gridTemplateColumns: "repeat(12, minmax(0, 1fr))",
+        gridTemplateRows: "repeat(10, minmax(0, 1fr))",
+        background: "linear-gradient(145deg, rgba(124,58,237,0.18), rgba(7,7,14,0.8))",
+        imageRendering: "pixelated",
+      }}
+    >
+      {patterns[variant].flatMap((row, rowIndex) =>
+        row.split("").map((token, columnIndex) => (
+          <span
+            key={`${rowIndex}-${columnIndex}`}
+            style={{ background: colors[token] ?? "transparent" }}
+          />
+        )),
+      )}
+    </div>
+  );
+}
+
+<<<<<<< ours
+function ScreenTransferMarket({ gs, onChoose }: { gs: GameState; onChoose: (ch: Channel) => void }) {
+  const offers = buildOffers(gs.currentChannel, gs.isFirstMarket, gs.renderSold, gs.excludedChannels);
+=======
+function ScreenNaming({ onConfirm }: { onConfirm: (name: string, profile: StreamerProfile) => void }) {
+  const [name, setName] = useState("");
+  const [avatar, setAvatar] = useState<AvatarChoice | null>(null);
+  const [streamerType, setStreamerType] = useState<StreamerType | null>(null);
+  const [personality, setPersonality] = useState<Personality | null>(null);
+
+  const isComplete = Boolean(name.trim() && avatar && streamerType && personality);
+
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!isComplete || !avatar || !streamerType || !personality) return;
+    onConfirm(name.trim(), {
+      streamerType,
+      personality,
+      avatar,
+    });
+  };
+>>>>>>> theirs
+
+  return (
+    <div className="min-h-screen px-4 py-8 sm:px-6 lg:py-12 relative overflow-hidden">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute left-1/2 top-1/3 h-[620px] w-[900px] -translate-x-1/2 rounded-full"
+          style={{ background: "radial-gradient(ellipse, rgba(124,58,237,0.13) 0%, transparent 68%)" }} />
+        <div className="absolute inset-0 opacity-[0.025]"
+          style={{ backgroundImage: "linear-gradient(#7c3aed 1px, transparent 1px), linear-gradient(90deg, #7c3aed 1px, transparent 1px)", backgroundSize: "48px 48px" }} />
+      </div>
+
+      <motion.form
+        onSubmit={submit}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-6"
+      >
+        <header className="text-center sm:text-left">
+          <p className="mb-2 font-mono text-xs tracking-[0.3em]" style={{ color: "#a78bfa" }}>CREÁ TU PERFIL</p>
+          <h2 className="font-black leading-none" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(2.6rem, 7vw, 4.5rem)" }}>
+            ¿QUIÉN SOS EN STREAM?
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed" style={{ color: "#8080a8" }}>
+            Estos datos van a definir tu perfil de jugador y quedarán guardados durante toda la carrera.
+          </p>
+        </header>
+
+        <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+          <section className="rounded-2xl p-5 sm:p-6"
+            style={{ background: "rgba(15,15,30,0.86)", border: "1px solid rgba(124,58,237,0.28)", boxShadow: "0 18px 60px rgba(0,0,0,0.28)" }}>
+            <p className="mb-5 font-mono text-xs tracking-[0.24em]" style={{ color: "#a78bfa" }}>IDENTIDAD</p>
+
+            <div className="space-y-5">
+              <div>
+                <label htmlFor="streamer-name" className="mb-2 block font-mono text-xs uppercase tracking-[0.16em]" style={{ color: "#a0a0d0" }}>Nombre</label>
+                <input
+                  id="streamer-name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  autoFocus
+                  maxLength={24}
+                  placeholder="Tu nombre de streamer"
+                  className="w-full rounded-xl px-4 py-3.5 font-bold outline-none transition-all duration-200"
+                  style={{ background: "#0a0a16", border: name.trim() ? "1px solid #7c3aed" : "1px solid rgba(255,255,255,0.08)", color: "#eaeaff" }}
+                />
+              </div>
+
+              <div>
+                <p className="mb-3 font-mono text-xs uppercase tracking-[0.16em]" style={{ color: "#a0a0d0" }}>Elegí tu avatar</p>
+                <RadioGroup
+                  value={avatar ?? ""}
+                  onValueChange={(value) => setAvatar(value as AvatarChoice)}
+                  className="grid grid-cols-2 gap-3"
+                  aria-label="Elegí una apariencia para tu streamer"
+                >
+                  {(["avatar-a", "avatar-b"] as AvatarChoice[]).map((choice) => (
+                    <label key={choice} htmlFor={choice} className="cursor-pointer">
+                      <RadioGroupItem id={choice} value={choice} className="peer sr-only" />
+                      <div className="flex min-h-40 items-center justify-center rounded-2xl p-3 transition-all duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-purple-400 peer-data-[state=checked]:border-purple-400"
+                        style={{ background: "rgba(7,7,14,0.56)", border: avatar === choice ? "2px solid #c084fc" : "1px solid rgba(255,255,255,0.08)", boxShadow: avatar === choice ? "0 0 24px rgba(192,132,252,0.22)" : "none" }}>
+                        <PixelAvatarPlaceholder variant={choice} />
+                      </div>
+                    </label>
+                  ))}
+                </RadioGroup>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-2xl p-5 sm:p-6"
+            style={{ background: "rgba(15,15,30,0.86)", border: "1px solid rgba(124,58,237,0.28)", boxShadow: "0 18px 60px rgba(0,0,0,0.28)" }}>
+            <p className="mb-5 font-mono text-xs tracking-[0.24em]" style={{ color: "#a78bfa" }}>PERFIL DE STREAMER</p>
+
+            <div className="space-y-5">
+              <div>
+                <p className="mb-3 font-mono text-xs uppercase tracking-[0.16em]" style={{ color: "#a0a0d0" }}>Tipo de streamer</p>
+                <RadioGroup
+                  value={streamerType ?? ""}
+                  onValueChange={(value) => setStreamerType(value as StreamerType)}
+                  className="grid gap-2 sm:grid-cols-3"
+                  aria-label="Tipo de streamer"
+                >
+                  {(["Reacción", "Gamer", "Opinión Política"] as StreamerType[]).map((type) => {
+                    const id = `streamer-type-${type.replace(/\s/g, "-").toLowerCase()}`;
+                    return (
+                      <label key={type} htmlFor={id} className="cursor-pointer">
+                        <RadioGroupItem id={id} value={type} className="peer sr-only" />
+                        <div className="rounded-xl px-3 py-3 text-center text-sm font-semibold transition-all duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-purple-400"
+                          style={{ background: streamerType === type ? "rgba(124,58,237,0.24)" : "rgba(7,7,14,0.56)", border: streamerType === type ? "1px solid #a78bfa" : "1px solid rgba(255,255,255,0.08)", color: streamerType === type ? "#e9d5ff" : "#8585ad" }}>
+                          {type}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </RadioGroup>
+              </div>
+
+              <div>
+                <p className="font-mono text-xs uppercase tracking-[0.16em]" style={{ color: "#a0a0d0" }}>Personalidad</p>
+                <p className="mt-2 text-sm" style={{ color: "#9090bc" }}>¿Cómo sos al aire?</p>
+                <RadioGroup
+                  value={personality ?? ""}
+                  onValueChange={(value) => setPersonality(value as Personality)}
+                  className="mt-3 grid grid-cols-2 gap-2"
+                  aria-label="Personalidad al aire"
+                >
+                  {(Object.keys(PERSONALITIES) as Personality[]).map((id) => {
+                    const option = PERSONALITIES[id];
+                    return (
+                      <label key={id} htmlFor={`personality-${id}`} className="cursor-pointer">
+                        <RadioGroupItem id={`personality-${id}`} value={id} className="peer sr-only" />
+                        <div className="rounded-xl px-3 py-3 text-center text-sm font-semibold transition-all duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-purple-400"
+                          style={{ background: personality === id ? "rgba(124,58,237,0.24)" : "rgba(7,7,14,0.56)", border: personality === id ? "1px solid #a78bfa" : "1px solid rgba(255,255,255,0.08)", color: personality === id ? "#e9d5ff" : "#b5b5cc" }}>
+                          <span className="mr-1.5">{option.emoji}</span>{option.label}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </RadioGroup>
+              </div>
+            </div>
+          </section>
         </div>
-        <div className="w-full flex flex-col gap-3">
-          <input value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()}
-            autoFocus maxLength={24} placeholder="xXTuNombreXx"
-            className="w-full px-5 py-4 rounded-xl font-bold text-xl text-center outline-none transition-all duration-200"
-            style={{ fontFamily: "'Barlow Condensed', sans-serif", background: "#181830",
-              border: val.trim() ? "1px solid #7c3aed" : "1px solid rgba(124,58,237,0.2)", color: "#eaeaff", letterSpacing: "0.08em" }} />
-          <motion.button onClick={submit} disabled={!val.trim()} whileHover={val.trim() ? { scale: 1.03 } : {}} whileTap={val.trim() ? { scale: 0.97 } : {}}
-            className="w-full py-4 rounded-xl font-black text-base tracking-widest uppercase transition-all duration-200"
-            style={{ fontFamily: "'Barlow Condensed', sans-serif",
-              background: val.trim() ? "linear-gradient(135deg, #7c3aed, #a855f7)" : "#181830",
-              color: val.trim() ? "#fff" : "#4b5563",
-              boxShadow: val.trim() ? "0 0 24px rgba(124,58,237,0.4)" : "none" }}>
-            Confirmar nombre
-          </motion.button>
+
+        <motion.button
+          type="submit"
+          disabled={!isComplete}
+          whileHover={isComplete ? { scale: 1.015, boxShadow: "0 0 36px rgba(124,58,237,0.48)" } : {}}
+          whileTap={isComplete ? { scale: 0.985 } : {}}
+          className="w-full rounded-xl py-4 font-black uppercase tracking-[0.16em] transition-all duration-200 disabled:cursor-not-allowed"
+          style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            background: isComplete ? "linear-gradient(135deg, #7c3aed, #a855f7)" : "#181830",
+            color: isComplete ? "#ffffff" : "#505070",
+            boxShadow: isComplete ? "0 0 24px rgba(124,58,237,0.34)" : "none",
+          }}
+        >
+          Crear perfil y continuar →
+        </motion.button>
+      </motion.form>
+    </div>
+  );
+}
+
+function ContractPips({ value, color }: { value: number; color: string }) {
+  return (
+    <div className="flex gap-1" aria-label={`${value} de 5`}>
+      {Array.from({ length: 5 }, (_, index) => (
+        <span
+          key={index}
+          className="h-3 flex-1 rounded-[3px]"
+          style={{
+            background: index < value ? color : "rgba(255,255,255,0.08)",
+            boxShadow: index < value ? `0 0 8px ${color}55` : "none",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function PrizeUnlockVisual({ prize }: { prize: AwardedPrize }) {
+  const source = getPrizeAssetSrc(prize.icon);
+
+  if (source) {
+    return <img src={source} alt={prize.name} className="h-48 w-72 object-contain sm:h-56 sm:w-80" />;
+  }
+
+  return <PrizeIcon prize={prize} className="h-48 w-72 sm:h-56 sm:w-80" />;
+}
+
+function getPrizeCelebrationMessage(prize: AwardedPrize): string {
+  const definition = DOC_PREMIOS.find((entry) => entry.id === prize.id);
+  if (definition?.type === "AUTOMATICO" && definition.followersRequirement !== undefined) {
+    return `¡Llegaste a los ${new Intl.NumberFormat("es-AR").format(definition.followersRequirement)} seguidores!`;
+  }
+  return `¡Ganaste ${prize.name}!`;
+}
+
+function PrizeUnlockModal({ prize, onContinue }: { prize: AwardedPrize; onContinue: () => void }) {
+  return (
+    <motion.div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-[#03040c]/80 p-4 backdrop-blur-sm"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="prize-unlock-title"
+    >
+      <motion.section
+        initial={{ opacity: 0, y: 24, scale: 0.94 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 16, scale: 0.96 }}
+        transition={{ type: "spring", stiffness: 260, damping: 22 }}
+        className="relative w-full max-w-md overflow-hidden rounded-3xl p-6 text-center sm:p-8"
+        style={{ background: "radial-gradient(circle at 50% 5%, rgba(192,132,252,0.28), transparent 42%), linear-gradient(160deg, #17142b, #080a17 64%)", border: "1px solid rgba(192,132,252,0.52)", boxShadow: "0 0 60px rgba(124,58,237,0.36)" }}
+      >
+        {["12%", "28%", "72%", "87%", "48%"].map((left, index) => (
+          <motion.span
+            key={left}
+            aria-hidden="true"
+            className="absolute top-4 h-1.5 w-1.5 rounded-full"
+            style={{ left, background: index % 2 ? "#22d3ee" : "#fbbf24", boxShadow: "0 0 10px currentColor" }}
+            animate={{ y: [0, 10, 0], opacity: [0.35, 1, 0.35] }}
+            transition={{ duration: 2.2 + index * 0.16, repeat: Infinity, ease: "easeInOut" }}
+          />
+        ))}
+
+        <p id="prize-unlock-title" className="relative font-mono text-sm font-bold uppercase tracking-[0.24em]" style={{ color: "#e9d5ff" }}>
+          ¡Felicidades!
+        </p>
+        <motion.div
+          className="relative mx-auto mt-6 w-fit"
+          initial={{ opacity: 0, scale: 0.72, rotate: -4 }}
+          animate={{ opacity: 1, scale: 1, rotate: 0 }}
+          transition={{ delay: 0.18, type: "spring", stiffness: 230, damping: 15 }}
+        >
+          <PrizeUnlockVisual prize={prize} />
+        </motion.div>
+        <h2 className="relative mt-6 font-black uppercase leading-none text-white" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(2rem, 7vw, 3rem)" }}>
+          {getPrizeCelebrationMessage(prize)}
+        </h2>
+        <p className="relative mt-3 text-sm" style={{ color: "#acaec6" }}>{prize.name} desbloqueada · x{prize.count}</p>
+        <motion.button
+          type="button"
+          onClick={onContinue}
+          whileHover={{ scale: 1.025 }}
+          whileTap={{ scale: 0.98 }}
+          className="relative mt-7 w-full rounded-xl py-3.5 font-black uppercase tracking-[0.15em]"
+          style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.2rem", background: "linear-gradient(135deg, #7c3aed, #a855f7)", color: "#fff", boxShadow: "0 0 22px rgba(124,58,237,0.42)" }}
+        >
+          Continuar →
+        </motion.button>
+      </motion.section>
+    </motion.div>
+  );
+}
+
+function PrizeIcon({ prize, className = "h-7 w-7" }: { prize: AwardedPrize; className?: string }) {
+  const source = getPrizeAssetSrc(prize.icon);
+
+  if (source) {
+    return <img src={source} alt={prize.name} className={`${className} shrink-0 object-contain`} title={prize.name} />;
+  }
+
+  return (
+    <span
+      aria-label={prize.name}
+      title={`${prize.name} (imagen pendiente)`}
+      className={`${className} shrink-0 rounded-md`}
+      style={{ background: "linear-gradient(145deg, rgba(251,191,36,0.36), rgba(124,58,237,0.42))", border: "1px solid rgba(255,255,255,0.32)", boxShadow: "inset 0 0 8px rgba(255,255,255,0.18)" }}
+    />
+  );
+}
+
+function CareerSidebar({ gs }: { gs: GameState }) {
+  const profile = gs.streamerProfile;
+  const streamerTypeColor = profile?.streamerType === "Gamer"
+    ? "#38bdf8"
+    : profile?.streamerType === "Opinión Política"
+      ? "#fb2c68"
+      : "#c084fc";
+
+  return (
+    <aside className="rounded-[22px] p-4 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:overflow-y-auto"
+      style={{ background: "linear-gradient(180deg, rgba(8,10,23,0.98), rgba(5,8,18,0.96))", border: "1px solid rgba(124,58,237,0.24)", boxShadow: "inset -1px 0 rgba(255,255,255,0.02)" }}>
+      <h1 className="px-2 py-2 font-black italic tracking-wider"
+        style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "2rem", color: "#ffffff", textShadow: "0 0 14px #7c3aed, 0 0 28px #7c3aed" }}>
+        STREAMERO
+      </h1>
+
+      <div className="mt-1 rounded-2xl p-3 text-center" style={{ border: "1px solid rgba(167,139,250,0.24)", background: "rgba(9,11,26,0.82)" }}>
+        <div className="mx-auto flex w-fit items-center justify-center rounded-2xl p-1"
+          style={{ border: "1px solid #ec4899", boxShadow: "0 0 16px rgba(236,72,153,0.26)" }}>
+          <PixelAvatarPlaceholder variant={profile?.avatar ?? "avatar-a"} />
+        </div>
+        <p className="mt-2 truncate text-2xl font-semibold text-white">{gs.streamerName}</p>
+
+        <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-3" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+          <div className="flex items-center gap-2 rounded-xl px-2 py-2 text-left" style={{ background: "rgba(124,58,237,0.08)" }}>
+            <Users size={25} style={{ color: "#a78bfa" }} />
+            <div>
+              <p className="font-mono text-2xl font-black leading-none text-white">{fmt(gs.followers)}</p>
+              <p className="mt-1 text-xs" style={{ color: "#aaaac5" }}>Seguidores</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 rounded-xl px-2 py-2 text-left" style={{ background: "rgba(245,158,11,0.07)" }}>
+            <Award size={25} style={{ color: "#f59e0b" }} />
+            <div>
+              <p className="font-mono text-2xl font-black leading-none text-white">{gs.reputation}%</p>
+              <p className="mt-1 text-xs" style={{ color: "#aaaac5" }}>Popularidad</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 overflow-hidden rounded-2xl" style={{ border: "1px solid rgba(124,58,237,0.2)", background: "rgba(9,11,26,0.82)" }}>
+        <p className="px-4 py-3 font-mono text-sm uppercase tracking-[0.14em]" style={{ color: "#c084fc", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+          Perfil de jugador
+        </p>
+        <div className="divide-y text-sm" style={{ color: "#e2e2f0" }}>
+          <div className="flex items-center justify-between gap-3 px-4 py-3" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+            <span style={{ color: "#77779c" }}>Tipo de streamer</span>
+            <strong className="text-right" style={{ color: streamerTypeColor }}>{profile?.streamerType ?? "—"}</strong>
+          </div>
+          <div className="flex items-center justify-between gap-3 px-4 py-3" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+            <span style={{ color: "#77779c" }}>Personalidad</span>
+            <strong className="text-right" style={{ color: "#c084fc" }}>
+              {profile ? `${PERSONALITIES[profile.personality].emoji} ${PERSONALITIES[profile.personality].label}` : "—"}
+            </strong>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 overflow-hidden rounded-2xl" style={{ border: "1px solid rgba(124,58,237,0.2)", background: "rgba(9,11,26,0.82)" }}>
+        <p className="px-4 py-3 font-mono text-sm uppercase tracking-[0.14em]" style={{ color: "#c084fc", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+          Vitrina de premios
+        </p>
+        {gs.awardedAutomaticPrizes.length === 0 ? (
+          <div className="flex min-h-16 items-center justify-center p-3 text-center">
+            <p className="text-sm leading-6" style={{ color: "#777797" }}>Todavía no ganaste ningún premio.</p>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-3 p-4">
+            {gs.awardedAutomaticPrizes.map((prize) => (
+              <div key={prize.id} className="flex min-w-0 items-center gap-2" title={prize.name}>
+                <PrizeIcon prize={prize} className="h-10 w-10" />
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-semibold text-white">{prize.name}</p>
+                  <p className="font-mono text-xs" style={{ color: "#c084fc" }}>x{prize.count}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+function CareerScreenFrame({
+  gs,
+  progressCurrent,
+  progressTotal,
+  progressLabel,
+  accent = "#a855f7",
+  children,
+}: {
+  gs: GameState;
+  progressCurrent: number;
+  progressTotal: number;
+  progressLabel: string;
+  accent?: string;
+  children: React.ReactNode;
+}) {
+  // Este marco concentra el lateral, el fondo, los bordes y el indicador superior que
+  // comparten las pantallas de carrera. Mantenerlos en un único componente evita que
+  // resultados, mercados y resúmenes vuelvan a separarse visualmente con el tiempo.
+  return (
+    <div className="min-h-screen p-2 sm:p-3" style={{ background: "#02040c" }}>
+      <div className="mx-auto grid max-w-[1600px] gap-2 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <CareerSidebar gs={gs} />
+        <main className="overflow-hidden rounded-[22px]"
+          style={{ background: "radial-gradient(circle at 48% 20%, rgba(28,31,62,0.42), transparent 37%), linear-gradient(180deg, #050814, #030611)", border: "1px solid rgba(124,58,237,0.2)" }}>
+          <div className="flex flex-col items-center border-b px-5 py-3" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+            <div className="flex items-center gap-2">
+              {Array.from({ length: progressTotal }, (_, index) => {
+                const position = index + 1;
+                const isCurrent = position === progressCurrent;
+                const isComplete = position < progressCurrent;
+                return (
+                  <span key={index} className="rounded-full transition-all duration-300"
+                    style={{
+                      width: isCurrent ? 15 : 9,
+                      height: isCurrent ? 15 : 9,
+                      background: isComplete ? "#7c3aed" : isCurrent ? accent : "#292d3f",
+                      border: isCurrent ? `3px solid ${accent}` : "none",
+                      boxShadow: isCurrent ? `0 0 12px ${accent}` : "none",
+                    }} />
+                );
+              })}
+              <span className="ml-3 font-mono text-base" style={{ color: accent }}>{progressCurrent}/{progressTotal}</span>
+            </div>
+            <p className="mt-1 text-sm" style={{ color: "#d5d5e2" }}>{progressLabel}</p>
+          </div>
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function FirstContractCard({
+  gs,
+  channel,
+  selected,
+  onSelect,
+}: {
+  gs: GameState;
+  channel: Channel;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const info = CHANNELS[channel] ?? FALLBACK_CHANNEL;
+  const evaluation = getContractEvaluation(gs, channel);
+  const metricColor = channel === "RENDER" ? "#ffffff" : info.accent;
+
+  return (
+    <motion.button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      whileHover={{ y: -4 }}
+      whileTap={{ scale: 0.985 }}
+      className="relative flex min-h-[390px] h-full flex-col overflow-hidden rounded-2xl p-5 text-left transition-all duration-200"
+      style={{
+        background: `linear-gradient(155deg, ${info.color}18 0%, rgba(7,9,21,0.96) 42%, rgba(5,7,17,0.98) 100%)`,
+        border: selected ? `2px solid ${info.accent}` : `1px solid ${info.color}80`,
+        boxShadow: selected ? `0 0 24px ${info.glow}, inset 0 0 20px ${info.color}0d` : `inset 0 0 18px ${info.color}08`,
+      }}
+    >
+      {selected && (
+        <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full px-2.5 py-1 font-mono text-xs uppercase"
+          style={{ background: info.accent, color: "#080812" }}>
+          Seleccionado <CheckCircle2 size={13} />
+        </span>
+      )}
+
+      <div className="flex min-h-14 items-center gap-2.5 pr-2">
+        {info.logo ? <img src={info.logo} alt={`Logo de ${info.shortName}`} className="h-12 w-14 shrink-0 object-contain" /> : null}
+        <h3 className="font-black uppercase tracking-wide" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(1.75rem, 2.2vw, 2.35rem)", color: metricColor }}>
+          {info.shortName}
+        </h3>
+      </div>
+
+      <p className="mt-4 text-base leading-6" style={{ color: "#c8c8da" }}>{info.tagline}</p>
+      <p className="mt-4 text-base">
+        <span style={{ color: metricColor }}>Figura:</span>{" "}
+        <strong className="font-medium text-white">{info.figure}</strong>
+      </p>
+
+      <div className="mt-auto grid grid-cols-2 gap-2 border-t pt-4" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+        <div>
+          <div className="mb-2 text-xs font-medium" style={{ color: "#c8c8da" }}>Afinidad de tipo</div>
+          <ContractPips value={Math.round(evaluation.compatibility.total / 20)} color={metricColor} />
+        </div>
+        <div>
+          <div className="mb-2 flex items-center gap-1.5 text-xs font-medium" style={{ color: "#c8c8da" }}><Target size={15} /> Alcance</div>
+          <ContractPips value={evaluation.reachPips} color={metricColor} />
+          <p className="mt-1.5 font-mono text-xs font-bold" style={{ color: metricColor }}>{Math.round(evaluation.personalizedReach)}%</p>
+        </div>
+      </div>
+    </motion.button>
+  );
+}
+
+function ScreenFirstContract({ gs, offers, onChoose }: { gs: GameState; offers: Channel[]; onChoose: (ch: Channel) => void }) {
+  const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
+  const selectedInfo = selectedChannel ? CHANNELS[selectedChannel] : null;
+
+  return (
+    <div className="min-h-screen p-2 sm:p-3" style={{ background: "#02040c" }}>
+      <div className="mx-auto grid max-w-[1600px] gap-2 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <CareerSidebar gs={gs} />
+
+        <main className="overflow-hidden rounded-[22px]"
+          style={{ background: "radial-gradient(circle at 48% 20%, rgba(28,31,62,0.42), transparent 37%), linear-gradient(180deg, #050814, #030611)", border: "1px solid rgba(124,58,237,0.2)" }}>
+          <div className="flex flex-col items-center border-b px-5 py-3" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+            <div className="flex items-center gap-2">
+              {Array.from({ length: SEASONS }, (_, index) => (
+                <span key={index} className="rounded-full transition-all"
+                  style={{
+                    width: index === 0 ? 15 : 9,
+                    height: index === 0 ? 15 : 9,
+                    background: index === 0 ? "#a855f7" : "#292d3f",
+                    border: index === 0 ? "3px solid #d8b4fe" : "none",
+                    boxShadow: index === 0 ? "0 0 12px #a855f7" : "none",
+                  }} />
+              ))}
+              <span className="ml-3 font-mono text-base" style={{ color: "#d8b4fe" }}>1/{SEASONS}</span>
+            </div>
+            <p className="mt-1 text-sm" style={{ color: "#d5d5e2" }}>Progreso de carrera</p>
+          </div>
+
+          <div className="p-4 sm:p-5 xl:p-6">
+            <header>
+              <p className="font-mono text-xs uppercase tracking-[0.24em]" style={{ color: "#f59e0b" }}>Primera propuesta ✦</p>
+              <h2 className="mt-2 font-black uppercase leading-none text-white"
+                style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(2.6rem, 5vw, 4.2rem)" }}>
+                Tu primer contrato
+              </h2>
+              <p className="mt-2 text-lg" style={{ color: "#c1c1d0" }}>
+                Cuatro canales, cuatro estilos. Elegí bien: cada decisión define tu camino.
+              </p>
+            </header>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {offers.map((channel) => (
+                <FirstContractCard
+                  key={channel}
+                  gs={gs}
+                  channel={channel}
+                  selected={selectedChannel === channel}
+                  onSelect={() => setSelectedChannel(channel)}
+                />
+              ))}
+            </div>
+
+            <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
+              <section className="rounded-2xl p-4" style={{ background: "rgba(9,13,29,0.78)", border: "1px solid rgba(124,58,237,0.24)" }}>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-mono text-base font-bold uppercase tracking-[0.12em]" style={{ color: "#c084fc" }}>¿Cómo funcionan los contratos?</h3>
+                  <Info size={19} style={{ color: "#a78bfa" }} />
+                </div>
+                <p className="mt-3 text-sm leading-6" style={{ color: "#c7c7d8" }}>
+                  La afinidad se calcula según tu tipo de streamer. El alcance muestra el público potencial de cada propuesta.
+                </p>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div className="flex gap-2.5"><Info className="shrink-0" size={20} style={{ color: "#a78bfa" }} /><p className="text-sm leading-5" style={{ color: "#b9b9cd" }}>La personalidad queda guardada en tu perfil, sin bonificaciones ni penalizaciones por ahora.</p></div>
+                  <div className="flex gap-2.5"><Target className="shrink-0" size={20} style={{ color: "#f59e0b" }} /><p className="text-sm leading-5" style={{ color: "#b9b9cd" }}>Alcance indica el público potencial del canal.</p></div>
+                </div>
+              </section>
+
+              <section className="flex flex-col justify-between rounded-2xl p-4" style={{ background: "rgba(9,13,29,0.86)", border: "1px solid rgba(124,58,237,0.24)" }}>
+                <div className="flex gap-3">
+                  <Rocket className="shrink-0" size={28} style={{ color: selectedInfo?.accent ?? "#fb2c68" }} />
+                  <p className="text-base leading-6" style={{ color: "#d0d0df" }}>
+                    {selectedInfo
+                      ? `Elegiste ${selectedInfo.shortName}. Confirmá para comenzar tu carrera en el canal.`
+                      : "Elegí el contrato que mejor acompañe tu estilo para comenzar tu carrera."}
+                  </p>
+                </div>
+                <motion.button
+                  type="button"
+                  disabled={!selectedChannel}
+                  onClick={() => selectedChannel && onChoose(selectedChannel)}
+                  whileHover={selectedChannel ? { scale: 1.02 } : {}}
+                  whileTap={selectedChannel ? { scale: 0.98 } : {}}
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-4 font-black uppercase tracking-wide transition-all disabled:cursor-not-allowed"
+                  style={{
+                    fontFamily: "'Barlow Condensed', sans-serif",
+                    fontSize: "1.35rem",
+                    background: selectedChannel ? "linear-gradient(135deg, #fb2c68, #f43f5e)" : "#181b2b",
+                    color: selectedChannel ? "#ffffff" : "#53576c",
+                    border: selectedChannel ? "1px solid #fb7185" : "1px solid rgba(255,255,255,0.06)",
+                    boxShadow: selectedChannel ? "0 0 24px rgba(251,44,104,0.34)" : "none",
+                  }}
+                >
+                  <Rocket size={20} /> Elegir contrato
+                </motion.button>
+                <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-sm leading-5" style={{ color: "#9294ad" }}>
+                  <Info size={13} /> La contratación comienza únicamente después de confirmar.
+                </p>
+              </section>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function ScreenStandardTransferMarket({ gs, onChoose }: { gs: GameState; onChoose: (ch: Channel) => void }) {
+  const [offers] = useState<Channel[]>(() => buildOffers(gs));
+  const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
+  const selectedInfo = selectedChannel ? CHANNELS[selectedChannel] ?? FALLBACK_CHANNEL : null;
+  const isRenewal = selectedChannel === gs.currentChannel;
+
+  return (
+    <CareerScreenFrame gs={gs} progressCurrent={gs.season} progressTotal={SEASONS} progressLabel="Progreso de carrera" accent="#f59e0b">
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }} className="p-4 sm:p-5 xl:p-6">
+        <header>
+          <p className="font-mono text-xs uppercase tracking-[0.24em]" style={{ color: "#f59e0b" }}>Mercado de pases · Temporada {gs.season}</p>
+          <h2 className="mt-2 font-black uppercase leading-none text-white"
+            style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(2.6rem, 5vw, 4.2rem)" }}>
+            Elegí tu próximo contrato
+          </h2>
+          <p className="mt-2 text-lg" style={{ color: "#c1c1d0" }}>Las propuestas ya consideran tu perfil, popularidad, seguidores y rendimiento reciente.</p>
+        </header>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {offers.map((channel) => (
+            <div key={channel} className="relative">
+              {channel === gs.currentChannel && (
+                <span className="pointer-events-none absolute left-3 top-3 z-10 rounded-full px-2.5 py-1 font-mono text-xs font-bold uppercase"
+                  style={{ background: "#f59e0b", color: "#090b16" }}>Renovación</span>
+              )}
+              <FirstContractCard gs={gs} channel={channel} selected={selectedChannel === channel} onSelect={() => setSelectedChannel(channel)} />
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <section className="rounded-2xl p-4" style={{ background: "rgba(9,13,29,0.78)", border: "1px solid rgba(124,58,237,0.24)" }}>
+            <div className="flex items-center gap-2">
+              <Info size={19} style={{ color: "#a78bfa" }} />
+              <h3 className="font-mono text-base font-bold uppercase tracking-[0.12em]" style={{ color: "#c084fc" }}>Tu carrera ya pesa en las ofertas</h3>
+            </div>
+            <p className="mt-3 text-sm leading-6" style={{ color: "#c7c7d8" }}>
+              Un canal afín ofrece mejor alcance. Tu popularidad, seguidores y desempeño determinan además qué canales están dispuestos a contratarte.
+            </p>
+          </section>
+
+          <section className="flex flex-col justify-between rounded-2xl p-4" style={{ background: "rgba(9,13,29,0.86)", border: "1px solid rgba(124,58,237,0.24)" }}>
+            <p className="text-base leading-6" style={{ color: "#d0d0df" }}>
+              {selectedInfo
+                ? isRenewal
+                  ? `Vas a renovar con ${selectedInfo.shortName}.`
+                  : `Vas a continuar tu carrera en ${selectedInfo.shortName}.`
+                : "Seleccioná una propuesta para ver y confirmar tu próximo paso."}
+            </p>
+            <motion.button type="button" disabled={!selectedChannel} onClick={() => selectedChannel && onChoose(selectedChannel)}
+              whileHover={selectedChannel ? { scale: 1.02 } : {}} whileTap={selectedChannel ? { scale: 0.98 } : {}}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-4 font-black uppercase tracking-wide disabled:cursor-not-allowed"
+              style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.3rem", background: selectedChannel ? "linear-gradient(135deg, #f59e0b, #f97316)" : "#181b2b", color: selectedChannel ? "#fff" : "#53576c", boxShadow: selectedChannel ? "0 0 24px rgba(245,158,11,0.28)" : "none" }}>
+              <Rocket size={20} /> {isRenewal ? "Renovar contrato" : "Confirmar contrato"}
+            </motion.button>
+          </section>
         </div>
       </motion.div>
-    </div>
+    </CareerScreenFrame>
   );
 }
 
 function ScreenTransferMarket({ gs, onChoose }: { gs: GameState; onChoose: (ch: Channel) => void }) {
-  const offers = buildOffers(gs.currentChannel, gs.isFirstMarket, gs.renderSold, gs.excludedChannels);
+  // La primera contratación conserva sus textos de introducción. Los mercados siguientes
+  // usan las mismas tarjetas y confirmación, pero reciben ofertas calculadas con la carrera.
+  const [firstOffers] = useState<Channel[]>(() => buildOffers(gs));
 
-  return (
-    <div className="min-h-screen flex flex-col px-6 pt-24 pb-12 relative">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[600px] h-[400px]"
-          style={{ background: "radial-gradient(ellipse, rgba(245,158,11,0.06) 0%, transparent 70%)" }} />
-      </div>
-
-      <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
-        className="max-w-2xl mx-auto w-full flex flex-col gap-6 relative z-10">
-        <div>
-          <p className="font-mono text-xs tracking-[0.3em] mb-1 uppercase" style={{ color: "#f59e0b" }}>
-            {gs.isFirstMarket ? "PRIMERA PROPUESTA" : `MERCADO DE PASES · TRAS TEMPORADA ${gs.season - 1}`}
-          </p>
-          <h2 className="font-black" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(2rem, 7vw, 3.5rem)" }}>
-            {gs.isFirstMarket ? "TU PRIMER CONTRATO" : "MERCADO DE PASES"}
-          </h2>
-          <p className="text-sm mt-1.5" style={{ color: "#7070a0" }}>
-            {gs.isFirstMarket
-              ? "Los canales que llegaron a vos. Elegí bien."
-              : "Las propuestas que llegaron esta ventana. El orden es al azar."}
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {offers.map((channel) => {
-            const info = CHANNELS[channel] ?? FALLBACK_CHANNEL;
-            const isCurrent = !gs.isFirstMarket && channel === gs.currentChannel;
-            return (
-              <motion.button key={channel} onClick={() => onChoose(channel)}
-                whileHover={{ scale: 1.02, y: -3 }} whileTap={{ scale: 0.98 }}
-                className="text-left rounded-2xl p-5 flex flex-col gap-4 relative transition-all duration-200"
-                style={{
-                  background: `linear-gradient(140deg, ${info.color}14, ${info.accent}08)`,
-                  border: isCurrent ? `2px solid ${info.color}` : `1px solid ${info.color}38`,
-                  boxShadow: isCurrent ? `0 0 20px ${info.glow}` : "none",
-                }}>
-                {isCurrent && (
-                  <span className="absolute top-3.5 right-3.5 text-xs font-mono px-2 py-0.5 rounded-full font-semibold"
-                    style={{ background: info.color, color: "#fff" }}>Renovar</span>
-                )}
-                <div>
-                  <div className="flex items-center gap-2.5 mb-2">
-                    {info.logo ? (
-                      <img
-                        src={info.logo}
-                        alt={info.shortName}
-                        className="h-12 w-12 sm:h-14 sm:w-14 object-contain shrink-0"
-                      />
-                    ) : null}
-                    <h3 className="font-black text-3xl sm:text-[34px] leading-none tracking-wider"
-                      style={{ fontFamily: "'Barlow Condensed', sans-serif", color: channel === "RENDER" ? "#ffffff" : info.accent, fontWeight: 900 }}>
-                      {info.shortName}
-                    </h3>
-                  </div>
-                  <p className="text-xs mt-0.5" style={{ color: "#6060a0" }}>{info.tagline}</p>
-                  {info.figure !== "–" && (
-                    <p className="text-xs mt-1 font-mono" style={{ color: channel === "RENDER" ? "#ffffff" : info.accent }}>
-                      Figura: {info.figure}
-                    </p>
-                  )}
-                </div>
-                <div className="grid grid-cols-3 gap-2 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-                  <div>
-                    <p className="text-xs font-mono mb-1.5" style={{ color: "#6060a0" }}>Remuneración</p>
-                    <Pips n={info.remuneration} max={5} color={channel === "RENDER" ? "#ffffff" : info.accent} />
-                    <p className="text-xs font-mono mt-1" style={{ color: "#5050a0" }}>
-                      {["", "Mínima", "Baja", "Media", "Alta", "Muy alta"][info.remuneration]}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-mono mb-1.5" style={{ color: "#6060a0" }}>Alcance</p>
-                    <Pips n={info.reach} max={5} color={channel === "RENDER" ? "#ffffff" : info.accent} />
-                    <p className="text-xs font-mono mt-1" style={{ color: "#5050a0" }}>
-                      {["", "Mínimo", "Bajo", "Medio", "Alto", "Muy alto"][info.reach]}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-mono mb-1.5" style={{ color: "#6060a0" }}>Exigencia</p>
-                    <p className="text-sm">{info.demand === "Baja" ? "🟢" : info.demand === "Media" ? "🟡" : "🔴"}</p>
-                    <p className="text-xs font-mono mt-0.5" style={{ color: info.demand === "Alta" ? "#f87171" : info.demand === "Media" ? "#fbbf24" : "#4ade80" }}>
-                      {info.demand}
-                    </p>
-                  </div>
-                </div>
-              </motion.button>
-            );
-          })}
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-function PrizeShowcase({ prizes }: { prizes: AwardedPrize[] }) {
-  if (prizes.length === 0) return null;
-
-  const rows: AwardedPrize[][] = [];
-  for (let index = 0; index < prizes.length; index += 1) {
-    const rowIndex = Math.floor(index / 3);
-    if (!rows[rowIndex]) rows[rowIndex] = [];
-    rows[rowIndex].push(prizes[index]);
+  if (gs.isFirstMarket) {
+    return <ScreenFirstContract gs={gs} offers={firstOffers} onChoose={onChoose} />;
   }
 
-  return (
-    <div className="rounded-2xl overflow-hidden"
-      style={{ background: "rgba(15,15,30,0.74)", border: "1px solid rgba(124,58,237,0.18)", boxShadow: "0 0 20px rgba(124,58,237,0.08)" }}>
-      <div className="px-3 py-2 text-[10px] font-mono tracking-[0.24em] uppercase text-center"
-        style={{ color: "#a0a0d0", background: "rgba(15,15,30,0.85)", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-        VITRINA DE PREMIOS
-      </div>
-      <div className="flex flex-col gap-3 p-3">
-        {rows.map((row, rowIndex) => (
-          <div key={`row-${rowIndex}`} className="grid grid-cols-3 gap-2">
-            {row.map((prize) => (
-              <motion.div
-                key={prize.id}
-                initial={{ opacity: 0, scale: 0.6, y: 12 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                className="flex flex-col items-center justify-center gap-1.5 text-center min-w-0"
-              >
-                <div className="flex h-11 w-11 items-center justify-center rounded-lg"
-                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                  <img src={`/assets/${prize.icon}`} alt={prize.name} className="h-8 w-8 object-contain" />
-                </div>
-                <span className="font-mono text-[10px] font-bold" style={{ color: "#d9d9f6" }}>x{prize.count}</span>
-              </motion.div>
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return <ScreenStandardTransferMarket gs={gs} onChoose={onChoose} />;
 }
 
 function ScreenEvent({ gs, onChoose, onContinueAutomatic }: { gs: GameState; onChoose: (idx: number) => void; onContinueAutomatic: () => void }) {
   const ev = gs.currentEvents[gs.eventIndex];
   const ch = CHANNELS[gs.currentChannel] ?? FALLBACK_CHANNEL;
+  const evaluation = getContractEvaluation(gs, gs.currentChannel);
   const isSpecial = ev.title.startsWith("⚡");
   const isAutomatic = ev.type === "automatic";
 
+  // La pantalla comparte deliberadamente el armazón visual del mercado inicial. De esta
+  // manera el jugador conserva el contexto de su perfil, el contrato y el avance del
+  // período sin depender del HUD flotante ni abandonar la identidad visual de la carrera.
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 pt-20 pb-12 relative overflow-hidden">
-      {isSpecial && (
-        <div className="pointer-events-none absolute inset-0"
-          style={{ background: "radial-gradient(ellipse at 50% 40%, rgba(159,18,57,0.12) 0%, transparent 60%)" }} />
-      )}
-      {ch.logo ? (
-        <img
-          src={ch.logo}
-          alt=""
-          className="pointer-events-none absolute -left-5 top-16 w-[260px] sm:w-[300px] md:w-[360px] lg:w-[420px] object-contain opacity-[0.12]"
-          style={{ zIndex: 0 }}
-        />
-      ) : null}
-      <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.45 }}
-        className="max-w-5xl w-full relative z-10">
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
-          <div className="flex flex-col gap-4 lg:pt-[54px]">
-            <PrizeShowcase prizes={gs.awardedAutomaticPrizes} />
-          </div>
+    <div className="min-h-screen p-2 sm:p-3" style={{ background: "#02040c" }}>
+      <div className="mx-auto grid max-w-[1600px] gap-2 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <CareerSidebar gs={gs} />
 
-          <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-mono text-xs tracking-[0.25em] uppercase" style={{ color: "#7070a0" }}>
-                  Temporada {gs.season} · Evento {gs.eventIndex + 1}/{EVENTS_PER_SEASON}
-                </p>
-                <div className="flex gap-1.5 mt-2">
-                  {Array.from({ length: EVENTS_PER_SEASON }, (_, i) => (
-                    <div key={i} className="h-1 rounded-full transition-all duration-300"
-                      style={{ width: i === gs.eventIndex ? 28 : 16,
-                        background: i < gs.eventIndex ? ch.color : i === gs.eventIndex ? ch.accent : "rgba(255,255,255,0.07)" }} />
-                  ))}
-                </div>
-              </div>
-              <span className="font-black text-sm tracking-widest px-3 py-1 rounded-lg"
-                style={{ fontFamily: "'Barlow Condensed', sans-serif", background: `${ch.color}20`, color: ch.accent, border: `1px solid ${ch.color}38` }}>
-                {ch.shortName}
+        <main className="overflow-hidden rounded-[22px]"
+          style={{
+            background: `radial-gradient(circle at 82% 16%, ${ch.color}1f, transparent 30%), radial-gradient(circle at 44% 24%, rgba(28,31,62,0.42), transparent 38%), linear-gradient(180deg, #050814, #030611)`,
+            border: "1px solid rgba(124,58,237,0.2)",
+          }}>
+          <div className="flex flex-col items-center border-b px-5 py-3" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+            <div className="flex items-center gap-2">
+              {Array.from({ length: EVENTS_PER_SEASON }, (_, index) => (
+                <span key={index} className="rounded-full transition-all duration-300"
+                  style={{
+                    width: index === gs.eventIndex ? 15 : 9,
+                    height: index === gs.eventIndex ? 15 : 9,
+                    background: index < gs.eventIndex ? ch.color : index === gs.eventIndex ? ch.accent : "#292d3f",
+                    border: index === gs.eventIndex ? `3px solid ${ch.accent}` : "none",
+                    boxShadow: index === gs.eventIndex ? `0 0 12px ${ch.accent}` : "none",
+                  }} />
+              ))}
+              <span className="ml-3 font-mono text-base" style={{ color: ch.accent }}>
+                {gs.eventIndex + 1}/{EVENTS_PER_SEASON}
               </span>
             </div>
+            <p className="mt-1 text-sm" style={{ color: "#d5d5e2" }}>Progreso del contrato</p>
+          </div>
 
-            <div className="rounded-2xl p-6"
-              style={{ background: "rgba(15,15,30,0.8)",
-                border: isSpecial ? "1px solid rgba(159,18,57,0.5)" : "1px solid rgba(124,58,237,0.15)",
-                boxShadow: isSpecial ? "0 0 32px rgba(159,18,57,0.15)" : "none" }}>
-              {isSpecial && (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full mb-3 text-xs font-mono font-semibold"
-                  style={{ background: "rgba(159,18,57,0.2)", border: "1px solid rgba(159,18,57,0.4)", color: "#fb7185" }}>
-                  EVENTO ESPECIAL
-                </div>
-              )}
-              <h2 className="font-black text-3xl mb-3 leading-tight" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-                {ev.title}
-              </h2>
-              <p className="text-sm leading-relaxed" style={{ color: "#9090b8" }}>{ev.description}</p>
-            </div>
-
-            {isAutomatic ? (
-              <div className="flex flex-col gap-3">
-                <div className="rounded-2xl p-5"
-                  style={{ background: "rgba(15,15,30,0.65)", border: "1px solid rgba(124,58,237,0.15)" }}>
-                  <p className="text-xs font-mono tracking-widest uppercase mb-3" style={{ color: "#7070a0" }}>Consecuencias</p>
-                  {(ev.consequences ?? []).length > 0 && (
-                    <div className="flex flex-col gap-4">
-                      <div className="text-sm leading-relaxed" style={{ color: "#c0c0e0" }}>
-                        {(ev.consequences ?? []).find((delta) => delta.message)?.message || ""}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-4">
-                        {(ev.consequences ?? []).flatMap((delta, deltaIndex) => {
-                          const items: Array<{ key: string; icon: string; value: number }> = [];
-                          if (delta.followers !== undefined) {
-                            items.push({ key: `followers-${deltaIndex}`, icon: "👥", value: delta.followers });
-                          }
-                          if (delta.reputation !== undefined) {
-                            items.push({ key: `reputation-${deltaIndex}`, icon: "🏅", value: delta.reputation });
-                          }
-                          return items;
-                        }).map((item) => (
-                          <div key={item.key} className="flex items-center gap-2">
-                            <span className="text-sm">{item.icon}</span>
-                            <Delta v={item.value} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+          <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4 }}
+            className="p-4 sm:p-5 xl:p-6">
+            <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="max-w-4xl">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-mono text-xs uppercase tracking-[0.24em]" style={{ color: "#f59e0b" }}>
+                    Temporada {gs.season} · Período {gs.eventIndex + 1}
+                  </p>
+                  {isSpecial && (
+                    <span className="rounded-full px-2.5 py-1 font-mono text-xs font-bold uppercase"
+                      style={{ background: "rgba(251,44,104,0.12)", border: "1px solid rgba(251,44,104,0.42)", color: "#fb7185" }}>
+                      Evento especial
+                    </span>
                   )}
                 </div>
-                <motion.button onClick={onContinueAutomatic} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                  className="w-full py-4 rounded-xl font-black text-base tracking-widest uppercase"
-                  style={{ fontFamily: "'Barlow Condensed', sans-serif", background: "linear-gradient(135deg, #7c3aed, #a855f7)", color: "#fff" }}>
-                  CONTINUAR
-                </motion.button>
+                <h2 className="mt-2 font-black uppercase leading-[0.95] text-white"
+                  style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(2.6rem, 5vw, 4.2rem)" }}>
+                  {ev.title.replace("⚡ ", "")}
+                </h2>
+                <p className="mt-3 max-w-4xl text-lg leading-7" style={{ color: "#c1c1d0" }}>{ev.description}</p>
               </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                <p className="text-xs font-mono tracking-widest uppercase" style={{ color: "#7070a0" }}>¿Qué decidís?</p>
-                {(ev.options ?? []).map((opt, i) => (
-                  <motion.button key={i} onClick={() => onChoose(i)}
-                    whileHover={{ scale: 1.02, x: 5 }} whileTap={{ scale: 0.98 }}
-                    className="text-left p-5 rounded-xl transition-all duration-200"
-                    style={{ background: "rgba(15,15,30,0.6)", border: "1px solid rgba(124,58,237,0.15)" }}>
-                    <div className="flex items-start gap-4">
-                      <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 mt-0.5"
-                        style={{ background: `${ch.color}28`, color: ch.accent, fontFamily: "'Barlow Condensed', sans-serif" }}>
-                        {String.fromCharCode(65 + i)}
-                      </span>
-                      <div>
-                        <p className="font-semibold text-sm" style={{ color: "#eaeaff" }}>{normalizeOptionText(opt.text)}</p>
-                        <p className="text-xs mt-0.5" style={{ color: "#7070a0" }}>{opt.detail}</p>
+
+              <div className="flex min-w-fit items-center gap-3 rounded-2xl px-4 py-3"
+                style={{ background: `${ch.color}12`, border: `1px solid ${ch.color}60` }}>
+                {ch.logo ? <img src={ch.logo} alt={`Logo de ${ch.shortName}`} className="h-12 w-14 object-contain" /> : null}
+                <div>
+                  <p className="font-mono text-xs uppercase tracking-[0.16em]" style={{ color: "#8787a5" }}>Contrato actual</p>
+                  <p className="font-black uppercase tracking-wide" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.65rem", color: ch.accent }}>
+                    {ch.shortName}
+                  </p>
+                </div>
+              </div>
+            </header>
+
+            <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+              <section className="rounded-2xl p-4 sm:p-5"
+                style={{ background: "rgba(9,13,29,0.8)", border: isSpecial ? "1px solid rgba(251,44,104,0.4)" : "1px solid rgba(124,58,237,0.24)" }}>
+                {isAutomatic ? (
+                  <div className="flex h-full flex-col">
+                    <p className="font-mono text-sm font-bold uppercase tracking-[0.16em]" style={{ color: "#c084fc" }}>Consecuencias del período</p>
+                    {(ev.consequences ?? []).length > 0 ? (
+                      <div className="mt-4 rounded-2xl p-5" style={{ background: "rgba(5,8,20,0.82)", border: `1px solid ${ch.color}52` }}>
+                        <p className="text-base leading-7" style={{ color: "#d0d0df" }}>
+                          {(ev.consequences ?? []).find((delta) => delta.message)?.message || "El contrato avanzó automáticamente."}
+                        </p>
+                        <div className="mt-5 flex flex-wrap items-center gap-5">
+                          {(ev.consequences ?? []).flatMap((delta, deltaIndex) => {
+                            const items: Array<{ key: string; label: string; value: number; suffix?: string }> = [];
+                            if (delta.followers !== undefined) items.push({ key: `followers-${deltaIndex}`, label: "Seguidores", value: delta.followers });
+                            if (delta.reputation !== undefined) items.push({ key: `reputation-${deltaIndex}`, label: "Popularidad", value: delta.reputation, suffix: "%" });
+                            return items;
+                          }).map((item) => (
+                            <div key={item.key} className="rounded-xl px-4 py-3" style={{ background: "rgba(255,255,255,0.035)" }}>
+                              <p className="text-xs uppercase tracking-wide" style={{ color: "#85859f" }}>{item.label}</p>
+                              <p className="mt-1 font-mono text-xl font-black"><Delta v={item.value} suffix={item.suffix} /></p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
+                    ) : null}
+                    <motion.button onClick={onContinueAutomatic} whileHover={{ scale: 1.015 }} whileTap={{ scale: 0.98 }}
+                      className="mt-auto flex w-full items-center justify-center gap-2 rounded-xl py-4 font-black uppercase tracking-wide"
+                      style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.3rem", background: `linear-gradient(135deg, ${ch.color}, ${ch.accent})`, color: "#fff", boxShadow: `0 0 24px ${ch.glow}` }}>
+                      Continuar <Rocket size={20} />
+                    </motion.button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="font-mono text-sm font-bold uppercase tracking-[0.16em]" style={{ color: "#c084fc" }}>¿Qué decidís?</p>
+                        <p className="mt-1 text-sm" style={{ color: "#9191aa" }}>Elegí la respuesta que defina tu paso por el canal.</p>
+                      </div>
+                      <Target size={27} style={{ color: ch.accent }} />
                     </div>
-                  </motion.button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </motion.div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      {(ev.options ?? []).map((opt, index) => (
+                        <motion.button key={index} onClick={() => onChoose(index)}
+                          whileHover={{ y: -3 }} whileTap={{ scale: 0.985 }}
+                          className="group min-h-[138px] rounded-2xl p-4 text-left transition-all duration-200"
+                          style={{ background: `linear-gradient(145deg, ${ch.color}12, rgba(5,8,20,0.92) 48%)`, border: `1px solid ${ch.color}65`, boxShadow: `inset 0 0 16px ${ch.color}0a` }}>
+                          <div className="flex h-full items-start gap-3">
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-mono text-base font-black"
+                              style={{ background: `${ch.color}28`, border: `1px solid ${ch.color}72`, color: ch.accent }}>
+                              {String.fromCharCode(65 + index)}
+                            </span>
+                            <div className="flex h-full min-w-0 flex-col">
+                              <p className="text-base font-bold leading-6 text-white">{normalizeOptionText(opt.text)}</p>
+                              <p className="mt-2 text-sm leading-5" style={{ color: "#9292ab" }}>{opt.detail}</p>
+                              <p className="mt-auto pt-3 font-mono text-xs uppercase tracking-[0.12em] opacity-0 transition-opacity group-hover:opacity-100" style={{ color: ch.accent }}>
+                                Elegir esta opción →
+                              </p>
+                            </div>
+                          </div>
+                        </motion.button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </section>
+
+              <aside className="flex flex-col gap-3">
+                <section className="rounded-2xl p-4" style={{ background: "rgba(9,13,29,0.86)", border: "1px solid rgba(124,58,237,0.24)" }}>
+                  <div className="flex items-center gap-2">
+                    <Info size={19} style={{ color: "#a78bfa" }} />
+                    <h3 className="font-mono text-sm font-bold uppercase tracking-[0.12em]" style={{ color: "#c084fc" }}>Tu decisión importa</h3>
+                  </div>
+                  <p className="mt-3 text-sm leading-6" style={{ color: "#c0c0d2" }}>
+                    Cada período puede modificar tus seguidores y tu popularidad.
+                  </p>
+                  <p className="mt-3 text-sm leading-6" style={{ color: "#85859f" }}>
+                    Las probabilidades permanecen ocultas: elegí según la identidad que querés construir.
+                  </p>
+                </section>
+
+                <section className="rounded-2xl p-4" style={{ background: `${ch.color}0d`, border: `1px solid ${ch.color}55` }}>
+                  <p className="font-mono text-xs uppercase tracking-[0.16em]" style={{ color: "#9292aa" }}>Alcance de este contrato</p>
+                  <div className="mt-3 flex items-end justify-between gap-3">
+                    <p className="font-mono text-4xl font-black text-white">{Math.round(evaluation.personalizedReach)}%</p>
+                    <Target size={30} style={{ color: ch.accent }} />
+                  </div>
+                  <div className="mt-3"><ContractPips value={evaluation.reachPips} color={ch.accent} /></div>
+                  <p className="mt-3 text-sm leading-5" style={{ color: "#9292aa" }}>Este valor amplifica tanto los buenos resultados como los errores.</p>
+                </section>
+              </aside>
+            </div>
+          </motion.div>
+        </main>
+      </div>
     </div>
   );
 }
@@ -1771,12 +2419,18 @@ function ScreenEventResult({ gs, onContinue }: { gs: GameState; onContinue: () =
   const ok = r.wasSuccess;
   const isForced = r.delta.specialOutcome === "forcedTransfer";
   const isChannelSold = isForced && r.eventTitle.includes("RENDER FUE VENDIDO");
+<<<<<<< ours
+=======
+  const statusColor = isForced ? "#fb2c68" : ok ? "#22c55e" : "#f87171";
+  const statusLabel = isForced ? (isChannelSold ? "Canal vendido" : "Contrato terminado") : ok ? "Decisión exitosa" : "La decisión salió mal";
+>>>>>>> theirs
   const consequences = [
-    { icon: "👥", label: "Seguidores", value: r.delta.followers },
-    ...(r.delta.reputation ? [{ icon: "🏅", label: "Reputación", value: r.delta.reputation }] : []),
+    { label: "Seguidores", value: r.delta.followers, suffix: "" },
+    ...(r.delta.reputation ? [{ label: "Popularidad", value: r.delta.reputation, suffix: "%" }] : []),
   ];
 
   return (
+<<<<<<< ours
     <div className="min-h-screen flex flex-col items-center justify-center px-6 pt-20 pb-12 relative">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full"
@@ -1796,204 +2450,231 @@ function ScreenEventResult({ gs, onContinue }: { gs: GameState; onContinue: () =
             {isForced ? (isChannelSold ? "Canal vendido" : "Te echaron") : ok ? "¡Éxito!" : "Fracaso"}
           </p>
           <h2 className="font-black text-3xl mb-1" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+=======
+    <CareerScreenFrame gs={gs} progressCurrent={gs.eventIndex + 1} progressTotal={EVENTS_PER_SEASON} progressLabel="Progreso del contrato" accent={statusColor}>
+      <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.42 }} className="p-4 sm:p-5 xl:p-6">
+        <header>
+          <p className="font-mono text-xs uppercase tracking-[0.24em]" style={{ color: statusColor }}>Resultado del período</p>
+          <h2 className="mt-2 font-black uppercase leading-none text-white"
+            style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(2.6rem, 5vw, 4.2rem)" }}>
+>>>>>>> theirs
             {r.eventTitle.replace("⚡ ", "")}
           </h2>
-          <p className="text-xs font-mono" style={{ color: "#7070a0" }}>"{r.optionText}"</p>
-        </div>
+          <p className="mt-2 text-base" style={{ color: "#aaaac0" }}>Elegiste: <strong className="text-white">“{normalizeOptionText(r.optionText)}”</strong></p>
+        </header>
 
-        <div className="w-full rounded-2xl p-6 flex flex-col gap-5"
-          style={{ background: "rgba(15,15,30,0.85)",
-            border: `1px solid ${isForced ? "rgba(159,18,57,0.4)" : ok ? "rgba(74,222,128,0.25)" : "rgba(248,113,113,0.25)"}` }}>
-          {r.delta.message ? (
-            <p className="text-sm leading-relaxed text-center" style={{ color: "#c0c0e0" }}>{r.delta.message}</p>
-          ) : null}
-
-          {isForced && (
-            <div className="px-4 py-3 rounded-xl text-xs font-mono text-center"
-              style={{ background: "rgba(159,18,57,0.12)", border: "1px solid rgba(159,18,57,0.3)", color: "#fb7185" }}>
-              ⚡ Vas al Mercado de Pases de inmediato. Tenés que encontrar nuevo canal.
-            </div>
-          )}
-
-          <div className="h-px" style={{ background: "rgba(255,255,255,0.05)" }} />
-          <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-6 px-2">
-            {consequences.map(({ icon, label, value }) => (
-              <div key={label} className="min-w-[110px] flex flex-col items-center text-center gap-2">
-                <p className="font-mono mb-0 inline-flex items-center justify-center gap-1" style={{ color: "#7070a0", fontSize: "1.55rem", fontWeight: 700, marginTop: "-0.12rem" }}>
-                  {icon} {label}
-                </p>
-                <Delta v={value} />
+        <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <section className="rounded-2xl p-5 sm:p-6"
+            style={{ background: `linear-gradient(145deg, ${statusColor}12, rgba(9,13,29,0.9) 46%)`, border: `1px solid ${statusColor}66`, boxShadow: `inset 0 0 28px ${statusColor}0b` }}>
+            <div className="flex flex-wrap items-center gap-3">
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 300, damping: 22 }}
+                className="flex h-14 w-14 items-center justify-center rounded-2xl"
+                style={{ background: `${statusColor}20`, border: `1px solid ${statusColor}70`, color: statusColor }}>
+                {ok && !isForced ? <CheckCircle2 size={31} /> : <Info size={31} />}
+              </motion.div>
+              <div>
+                <p className="font-mono text-xs uppercase tracking-[0.18em]" style={{ color: "#8d8da7" }}>Consecuencia</p>
+                <h3 className="mt-1 font-black uppercase" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "2rem", color: statusColor }}>{statusLabel}</h3>
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        <motion.button onClick={onContinue} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-          className="w-full py-4 rounded-xl font-black text-base tracking-widest uppercase"
-          style={{ fontFamily: "'Barlow Condensed', sans-serif",
-            background: isForced
-              ? "linear-gradient(135deg, #9f1239, #fb7185)"
-              : ok
-              ? "linear-gradient(135deg, #166534, #22c55e)"
-              : `linear-gradient(135deg, ${ch.color}99, ${ch.color})`,
-            color: "#fff" }}>
-          {isForced ? "Ir al Mercado de Pases →" : "Continuar →"}
-        </motion.button>
+            {r.delta.message ? <p className="mt-5 text-lg leading-8" style={{ color: "#d0d0df" }}>{r.delta.message}</p> : null}
+
+            {isForced && (
+              <div className="mt-5 rounded-xl px-4 py-3 text-sm leading-6"
+                style={{ background: "rgba(159,18,57,0.14)", border: "1px solid rgba(251,44,104,0.35)", color: "#fda4af" }}>
+                Tu contrato terminó. Vas al Mercado de Pases de inmediato para encontrar un nuevo canal.
+              </div>
+            )}
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {consequences.map(({ label, value, suffix }) => (
+                <div key={label} className="rounded-2xl p-4" style={{ background: "rgba(4,7,17,0.72)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <div className="flex items-center gap-2" style={{ color: label === "Seguidores" ? "#a78bfa" : "#f59e0b" }}>
+                    {label === "Seguidores" ? <Users size={23} /> : <Award size={23} />}
+                    <p className="text-sm font-semibold">{label}</p>
+                  </div>
+                  <div className="mt-3 font-mono text-3xl font-black"><Delta v={value} suffix={suffix} /></div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <aside className="flex flex-col gap-3">
+            <section className="rounded-2xl p-4" style={{ background: "rgba(9,13,29,0.86)", border: `1px solid ${ch.color}55` }}>
+              <p className="font-mono text-xs uppercase tracking-[0.16em]" style={{ color: "#8f8fa8" }}>Contrato actual</p>
+              <div className="mt-3 flex items-center gap-3">
+                {ch.logo ? <img src={ch.logo} alt={`Logo de ${ch.shortName}`} className="h-14 w-16 object-contain" /> : null}
+                <p className="font-black uppercase" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "2rem", color: ch.accent }}>{ch.shortName}</p>
+              </div>
+              <p className="mt-3 text-sm leading-6" style={{ color: "#9292aa" }}>
+                {isForced ? "Este vínculo ya no continúa." : `Todavía quedan ${Math.max(0, EVENTS_PER_SEASON - gs.eventIndex - 1)} períodos en esta temporada.`}
+              </p>
+            </section>
+
+            <motion.button onClick={onContinue} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+              className="mt-auto flex w-full items-center justify-center gap-2 rounded-xl py-4 font-black uppercase tracking-wide"
+              style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.3rem", background: `linear-gradient(135deg, ${isForced ? "#9f1239" : ch.color}, ${isForced ? "#fb2c68" : ch.accent})`, color: "#fff", boxShadow: `0 0 24px ${statusColor}35` }}>
+              {isForced ? "Ir al Mercado de Pases" : "Continuar"} <Rocket size={20} />
+            </motion.button>
+          </aside>
+        </div>
       </motion.div>
-    </div>
+    </CareerScreenFrame>
   );
 }
 
 function ScreenSeasonSummary({ gs, onContinue }: { gs: GameState; onContinue: () => void }) {
   const ch = CHANNELS[gs.currentChannel] ?? FALLBACK_CHANNEL;
-  const passive = ch.passiveMoney;
+  const repercussionFollowers = gs.seasonRepercussionFollowers ?? 0;
   const isLast = gs.season === SEASONS;
   const isMarket = !isLast;
-  const nextLabel = isLast ? "Ver resumen final →" : "Ir al Mercado de Pases →";
+  const nextLabel = isLast ? "Ver resumen final" : "Ir al Mercado de Pases";
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 pt-20 pb-12">
-      <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
-        className="max-w-md w-full flex flex-col gap-7">
-        <div className="text-center">
-          <p className="font-mono text-xs tracking-[0.3em] mb-1 uppercase" style={{ color: "#7070a0" }}>Resumen</p>
-          <h2 className="font-black" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(2.4rem, 10vw, 4rem)" }}>
-            TEMPORADA {gs.season}
+    <CareerScreenFrame gs={gs} progressCurrent={gs.season} progressTotal={SEASONS} progressLabel="Progreso de carrera" accent={ch.accent}>
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }} className="p-4 sm:p-5 xl:p-6">
+        <header>
+          <p className="font-mono text-xs uppercase tracking-[0.24em]" style={{ color: "#f59e0b" }}>Contrato completado</p>
+          <h2 className="mt-2 font-black uppercase leading-none text-white"
+            style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(2.8rem, 5vw, 4.4rem)" }}>
+            Resumen de temporada {gs.season}
           </h2>
-          <p className="text-sm mt-1 font-mono" style={{ color: "#6060a0" }}>
-            {gs.streamerName && <span className="text-muted-foreground">{gs.streamerName} · </span>}
-            <span style={{ color: ch.accent }}>{ch.shortName}</span>
-          </p>
-        </div>
+          <p className="mt-2 text-lg" style={{ color: "#c1c1d0" }}>Así terminó tu paso anual por <strong style={{ color: ch.accent }}>{ch.shortName}</strong>.</p>
+        </header>
 
-        <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(124,58,237,0.18)" }}>
-          <div className="px-5 py-2.5 text-xs font-mono tracking-widest uppercase"
-            style={{ background: "rgba(15,15,30,0.7)", borderBottom: "1px solid rgba(255,255,255,0.04)", color: "#7070a0" }}>
-            Movimientos de la temporada
-          </div>
-          {[{ icon: "👥", label: "Seguidores", v: gs.seasonAccum.followers }].map(({ icon, label, v }, i) => (
-            <div key={label} className="flex items-center justify-between px-5 py-4"
-              style={{ background: "rgba(15,15,30,0.45)", borderTop: i > 0 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
-              <span className="text-sm font-mono flex gap-2" style={{ color: "#9090b8" }}><span>{icon}</span>{label}</span>
-              <Delta v={v} />
+        <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <section className="rounded-2xl p-5" style={{ background: "rgba(9,13,29,0.8)", border: "1px solid rgba(124,58,237,0.24)" }}>
+            <p className="font-mono text-sm font-bold uppercase tracking-[0.14em]" style={{ color: "#c084fc" }}>Balance de la temporada</p>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <div className="rounded-2xl p-5" style={{ background: "rgba(124,58,237,0.08)", border: "1px solid rgba(124,58,237,0.22)" }}>
+                <Users size={29} style={{ color: "#a78bfa" }} />
+                <p className="mt-5 font-mono text-3xl font-black text-white"><Delta v={gs.seasonAccum.followers} /></p>
+                <p className="mt-2 text-sm" style={{ color: "#aaaac0" }}>Seguidores durante la temporada</p>
+              </div>
+              <div className="rounded-2xl p-5" style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.2)" }}>
+                <Award size={29} style={{ color: "#f59e0b" }} />
+                <p className="mt-5 font-mono text-3xl font-black text-white">{gs.reputation}%</p>
+                <p className="mt-2 text-sm" style={{ color: "#aaaac0" }}>Popularidad al cierre</p>
+              </div>
+              <div className="rounded-2xl p-5" style={{ background: `${ch.color}10`, border: `1px solid ${ch.color}44` }}>
+                <Rocket size={29} style={{ color: ch.accent }} />
+                <p className="mt-5 font-mono text-3xl font-black text-white"><Delta v={repercussionFollowers} /></p>
+                <p className="mt-2 text-sm" style={{ color: "#aaaac0" }}>🔥 Seguidores por repercusión</p>
+              </div>
             </div>
-          ))}
-          <div className="flex items-center justify-between px-5 py-4"
-            style={{ background: "rgba(15,15,30,0.45)", borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-            <span className="text-sm font-mono flex gap-2" style={{ color: "#9090b8" }}>
-              <span>🏢</span>Contrato con {ch.shortName}
-            </span>
-            <span className="font-mono font-semibold text-sm" style={{ color: "#f59e0b" }}>+${passive}K</span>
-          </div>
+
+            <div className="mt-4 flex items-center gap-4 rounded-2xl p-4" style={{ background: `${ch.color}0d`, border: `1px solid ${ch.color}42` }}>
+              {ch.logo ? <img src={ch.logo} alt={`Logo de ${ch.shortName}`} className="h-16 w-20 object-contain" /> : null}
+              <div>
+                <p className="font-mono text-xs uppercase tracking-[0.16em]" style={{ color: "#8e8ea7" }}>Canal de la temporada</p>
+                <p className="mt-1 font-black uppercase" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "2rem", color: ch.accent }}>{ch.shortName}</p>
+              </div>
+            </div>
+          </section>
+
+          <aside className="flex flex-col gap-3">
+            <section className="rounded-2xl p-4" style={{ background: "rgba(9,13,29,0.86)", border: "1px solid rgba(124,58,237,0.24)" }}>
+              <div className="flex items-center gap-2"><Info size={19} style={{ color: "#a78bfa" }} /><p className="font-mono text-sm font-bold uppercase tracking-[0.12em]" style={{ color: "#c084fc" }}>Próximo paso</p></div>
+              <p className="mt-3 text-base leading-6" style={{ color: "#c8c8d7" }}>
+                {isMarket ? "Se abre el Mercado de Pases. Podés renovar tu contrato o cambiar de canal según las ofertas disponibles." : "Completaste la última temporada. Ya podés revisar el balance completo de tu carrera."}
+              </p>
+            </section>
+            <motion.button onClick={onContinue} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+              className="mt-auto flex w-full items-center justify-center gap-2 rounded-xl py-4 font-black uppercase tracking-wide"
+              style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.3rem", background: `linear-gradient(135deg, ${ch.color}, ${ch.accent})`, color: "#fff", boxShadow: `0 0 24px ${ch.glow}` }}>
+              {nextLabel} <Rocket size={20} />
+            </motion.button>
+          </aside>
         </div>
-
-        {isMarket && (
-          <div className="rounded-xl px-4 py-3 text-xs font-mono text-center"
-            style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.2)", color: "#f59e0b" }}>
-            ⚡ Se abre el Mercado de Pases. Podés quedarte o cambiar de canal.
-          </div>
-        )}
-
-        <motion.button onClick={onContinue} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-          className="w-full py-4 rounded-xl font-black text-base tracking-widest uppercase"
-          style={{ fontFamily: "'Barlow Condensed', sans-serif", background: `linear-gradient(135deg, ${ch.color}, ${ch.accent})`, color: "#fff" }}>
-          {nextLabel}
-        </motion.button>
       </motion.div>
-    </div>
+    </CareerScreenFrame>
   );
 }
 
 function ScreenGameOver({ gs }: { gs: GameState }) {
   const rating = getFinalRating(gs.followers);
+  const finalChannel = CHANNELS[gs.currentChannel] ?? FALLBACK_CHANNEL;
   return (
-    <div className="min-h-screen flex flex-col items-center justify-start px-6 py-12 overflow-y-auto relative">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full"
-          style={{ background: `radial-gradient(circle, ${rating.color}10 0%, transparent 65%)` }} />
-        <div className="absolute inset-0 opacity-[0.022]"
-          style={{ backgroundImage: "linear-gradient(#7c3aed 1px, transparent 1px), linear-gradient(90deg, #7c3aed 1px, transparent 1px)", backgroundSize: "48px 48px" }} />
-      </div>
-
-      <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}
-        className="max-w-lg w-full flex flex-col gap-7 relative z-10 mt-4">
-        <div className="text-center">
-          <p className="font-mono text-xs tracking-[0.3em] mb-2 uppercase" style={{ color: "#7070a0" }}>Fin de Carrera · {SEASONS} Temporadas</p>
-          {gs.streamerName && (
-            <p className="font-black text-2xl mb-1" style={{ fontFamily: "'Barlow Condensed', sans-serif", color: "#8080b0" }}>
-              {gs.streamerName.toUpperCase()}
-            </p>
-          )}
-          <h2 className="font-black mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(2.5rem, 10vw, 4.5rem)" }}>
-            TU CARRERA TERMINÓ
-          </h2>
-          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.3, type: "spring" }}
-            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl font-black text-lg tracking-widest"
-            style={{ fontFamily: "'Barlow Condensed', sans-serif", background: `${rating.color}18`, border: `1px solid ${rating.color}50`, color: rating.color }}>
-            <span>{rating.emoji}</span>{rating.label.toUpperCase()}
+    <CareerScreenFrame gs={gs} progressCurrent={SEASONS} progressTotal={SEASONS} progressLabel="Carrera completada" accent={rating.color}>
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="p-4 sm:p-5 xl:p-6">
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="font-mono text-xs uppercase tracking-[0.24em]" style={{ color: rating.color }}>Fin de carrera · {SEASONS} temporadas</p>
+            <h2 className="mt-2 font-black uppercase leading-none text-white"
+              style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(3rem, 6vw, 5rem)" }}>
+              Tu carrera terminó
+            </h2>
+            <p className="mt-2 text-lg" style={{ color: "#c1c1d0" }}>{gs.streamerName}, este es el legado que construiste.</p>
+          </div>
+          <motion.div initial={{ scale: 0.84, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.22, type: "spring" }}
+            className="inline-flex items-center gap-2 self-start rounded-2xl px-5 py-3 font-black uppercase tracking-wider lg:self-auto"
+            style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.35rem", background: `${rating.color}18`, border: `1px solid ${rating.color}60`, color: rating.color }}>
+            <span>{rating.emoji}</span>{rating.label}
           </motion.div>
-        </div>
+        </header>
 
-        <div className="grid grid-cols-1 gap-3">
-          {[
-            { icon: "👥", label: "Seguidores finales", val: fmt(gs.followers) },
-          ].map(({ icon, label, val }) => (
-            <div key={label} className="flex flex-col items-center gap-2 py-5 rounded-xl"
-              style={{ background: "rgba(15,15,30,0.7)", border: "1px solid rgba(124,58,237,0.16)" }}>
-              <span className="text-2xl">{icon}</span>
-              <span className="font-mono font-bold" style={{ color: "#eaeaff" }}>{val}</span>
-              <span className="text-xs font-mono text-center px-2" style={{ color: "#7070a0" }}>{label}</span>
+        <div className="mt-5 grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            <div className="rounded-2xl p-5" style={{ background: "rgba(124,58,237,0.08)", border: "1px solid rgba(124,58,237,0.24)" }}>
+              <Users size={31} style={{ color: "#a78bfa" }} />
+              <p className="mt-5 font-mono text-4xl font-black text-white">{fmt(gs.followers)}</p>
+              <p className="mt-2 text-sm" style={{ color: "#aaaac0" }}>Seguidores finales</p>
             </div>
-          ))}
-        </div>
+            <div className="rounded-2xl p-5" style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.22)" }}>
+              <Award size={31} style={{ color: "#f59e0b" }} />
+              <p className="mt-5 font-mono text-4xl font-black text-white">{gs.reputation}%</p>
+              <p className="mt-2 text-sm" style={{ color: "#aaaac0" }}>Popularidad final</p>
+            </div>
+          </section>
 
-        <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(124,58,237,0.18)" }}>
-          <div className="px-5 py-2.5 text-xs font-mono tracking-widest uppercase"
-            style={{ background: "rgba(15,15,30,0.7)", borderBottom: "1px solid rgba(255,255,255,0.04)", color: "#7070a0" }}>
-            Historial de canales
-          </div>
-          {gs.careerHistory.length === 0 ? (
-            <div className="px-5 py-4 text-sm" style={{ color: "#7070a0" }}>Sin historial.</div>
-          ) : (
-            gs.careerHistory.map((e, i) => {
-              const info = CHANNELS[e.channel] ?? FALLBACK_CHANNEL;
-              return (
-                <div key={i} className="flex items-center justify-between px-5 py-4"
-                  style={{ background: "rgba(15,15,30,0.5)", borderTop: i > 0 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: info.color }} />
-                    <div className="min-w-0">
-                      <span className="font-black text-sm tracking-wider block"
-                        style={{ fontFamily: "'Barlow Condensed', sans-serif", color: info.accent }}>
-                        {info.shortName}
-                      </span>
-                      {info.figure !== "–" && (
-                        <span className="text-xs font-mono" style={{ color: "#5050a0" }}>Fig: {info.figure}</span>
-                      )}
+          <section className="rounded-2xl p-5" style={{ background: "rgba(9,13,29,0.82)", border: "1px solid rgba(124,58,237,0.24)" }}>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="font-mono text-sm font-bold uppercase tracking-[0.14em]" style={{ color: "#c084fc" }}>Historial de canales</h3>
+              <span className="text-xs" style={{ color: "#777790" }}>Terminaste en <strong style={{ color: finalChannel.accent }}>{finalChannel.shortName}</strong></span>
+            </div>
+            {gs.careerHistory.length === 0 ? (
+              <p className="mt-5 text-sm" style={{ color: "#777790" }}>No hay contratos registrados.</p>
+            ) : (
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {gs.careerHistory.map((entry, index) => {
+                  const info = CHANNELS[entry.channel] ?? FALLBACK_CHANNEL;
+                  const channelPrizes = gs.awardedAutomaticPrizes.filter((prize) => prize.channel === entry.channel);
+                  return (
+                    <div key={`${entry.channel}-${index}`} className="flex items-center justify-between gap-3 rounded-2xl p-4"
+                      style={{ background: `${info.color}0d`, border: `1px solid ${info.color}45` }}>
+                      <div className="flex min-w-0 items-center gap-3">
+                        {info.logo ? <img src={info.logo} alt={`Logo de ${info.shortName}`} className="h-12 w-14 shrink-0 object-contain" /> : null}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="truncate font-black uppercase" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.5rem", color: info.accent }}>{info.shortName}</p>
+                            {channelPrizes.length > 0 && (
+                              <div className="flex shrink-0 items-center gap-1" aria-label={`Premios obtenidos en ${info.shortName}`}>
+                                {channelPrizes.map((prize) => <PrizeIcon key={prize.id} prize={prize} />)}
+                              </div>
+                            )}
+                          </div>
+                          <p className="truncate text-xs" style={{ color: "#85859d" }}>{info.figure !== "–" ? info.figure : "Canal de streaming"}</p>
+                        </div>
+                      </div>
+                      <span className="shrink-0 rounded-full px-2.5 py-1 font-mono text-xs" style={{ background: `${info.color}22`, color: info.accent }}>{entry.seasons} temp.</span>
                     </div>
-                  </div>
-                  <span className="text-xs font-mono flex-shrink-0" style={{ color: "#7070a0" }}>{e.seasons} temp.</span>
-                </div>
-              );
-            })
-          )}
-          <div className="flex items-center justify-between px-5 py-4"
-            style={{ background: "rgba(15,15,30,0.5)", borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-            <span className="text-xs font-mono" style={{ color: "#7070a0" }}>Canal donde terminaste</span>
-            <span className="font-black text-sm tracking-wider"
-              style={{ fontFamily: "'Barlow Condensed', sans-serif", color: (CHANNELS[gs.currentChannel] ?? FALLBACK_CHANNEL).accent }}>
-              {(CHANNELS[gs.currentChannel] ?? FALLBACK_CHANNEL).shortName}
-            </span>
-          </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         </div>
 
-        <motion.button onClick={() => window.location.reload()} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-          className="w-full py-4 rounded-xl font-black text-base tracking-widest uppercase"
-          style={{ fontFamily: "'Barlow Condensed', sans-serif", background: "linear-gradient(135deg, #7c3aed, #a855f7)", color: "#fff", boxShadow: "0 0 20px rgba(124,58,237,0.35)" }}>
-          Nueva Carrera
-        </motion.button>
+        <div className="mt-4 flex justify-end">
+          <motion.button onClick={() => window.location.reload()} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+            className="flex w-full items-center justify-center gap-2 rounded-xl px-8 py-4 font-black uppercase tracking-wide sm:w-auto"
+            style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.3rem", background: "linear-gradient(135deg, #7c3aed, #a855f7)", color: "#fff", boxShadow: "0 0 24px rgba(124,58,237,0.32)" }}>
+            Nueva carrera <Rocket size={20} />
+          </motion.button>
+        </div>
       </motion.div>
-    </div>
+    </CareerScreenFrame>
   );
 }
 
@@ -2011,9 +2692,25 @@ export default function App() {
 
   
 
-  const applyDelta = (delta: StatDelta, s: GameState) => {
+  const getEffectiveDelta = (delta: StatDelta, s: GameState): StatDelta => {
+    const evaluation = getContractEvaluation(s, s.currentChannel);
+    const scaled = scaleOutcomeByReach(
+      delta.followers,
+      delta.reputation === 0 ? undefined : delta.reputation,
+      evaluation.personalizedReach,
+    );
+
+    return {
+      ...delta,
+      followers: scaled.followers,
+      reputation: scaled.popularity,
+    };
+  };
+
+  const applyEffectiveDelta = (delta: StatDelta, s: GameState) => {
     const nextFollowers = Math.max(0, s.followers + delta.followers);
-    const nextAwards = awardAutomaticPrizes(nextFollowers, s.awardedAutomaticPrizes);
+    const nextAwards = awardAutomaticPrizes(nextFollowers, s.awardedAutomaticPrizes, s.currentChannel);
+    const prizeUnlocks = getAwardIncrements(s.awardedAutomaticPrizes, nextAwards);
     return {
       followers: nextFollowers,
       reputation: Math.min(100, Math.max(0, s.reputation + (delta.reputation ?? 0))),
@@ -2021,15 +2718,37 @@ export default function App() {
         followers: s.seasonAccum.followers + delta.followers,
       },
       awardedAutomaticPrizes: nextAwards,
+      pendingPrizeUnlocks: [...s.pendingPrizeUnlocks, ...prizeUnlocks],
     };
   };
 
-  const applyDeltas = (deltas: StatDelta[], s: GameState) => deltas.reduce((acc, delta) => ({ ...acc, ...applyDelta(delta, acc) }), s);
+  const applySeasonRepercussion = (s: GameState): GameState => {
+    if (s.seasonRepercussionAwardedFor === s.season) return s;
+
+    const repercussionFollowers = calculateSeasonRepercussionFollowers(s.seasonAccum.followers);
+    const rewardState = applyEffectiveDelta({ followers: repercussionFollowers, message: "" }, s);
+
+    return {
+      ...s,
+      ...rewardState,
+      // La repercusión se basa solo en el balance de eventos y no debe alterar ese balance.
+      seasonAccum: s.seasonAccum,
+      seasonRepercussionFollowers: repercussionFollowers,
+      seasonRepercussionAwardedFor: s.season,
+    };
+  };
+
+  const applyDeltas = (deltas: StatDelta[], s: GameState) => deltas.reduce((acc, delta) => {
+    const effectiveDelta = getEffectiveDelta(delta, acc);
+    return { ...acc, ...applyEffectiveDelta(effectiveDelta, acc) };
+  }, s);
 
   const handleIntroNext = useCallback(() => setGs((s) => ({ ...s, phase: "naming" })), []);
 
-  const handleNamingConfirm = useCallback((name: string) => {
-    setGs((s) => ({ ...s, streamerName: name, phase: "transferMarket" }));
+  const handleNamingConfirm = useCallback((name: string, profile: StreamerProfile) => {
+    // El nombre se conserva en su propiedad histórica para no alterar las pantallas
+    // existentes; el resto de los datos viaja agrupado como un perfil extensible.
+    setGs((s) => ({ ...s, streamerName: name, streamerProfile: profile, phase: "transferMarket" }));
   }, []);
 
   const handleChooseChannel = useCallback((channel: Channel) => {
@@ -2043,6 +2762,7 @@ export default function App() {
           if (!nextUsedEventKeys.includes(key)) nextUsedEventKeys.push(key);
         }
       });
+      const nextAwards = awardAutomaticPrizes(s.followers, s.awardedAutomaticPrizes, channel);
       return {
         ...s,
         currentChannel: channel,
@@ -2050,10 +2770,15 @@ export default function App() {
         eventIndex: 0,
         currentEvents: events,
         seasonAccum: { followers: 0 },
+        seasonRepercussionFollowers: null,
+        seasonRepercussionAwardedFor: null,
         isFirstMarket: false,
         usedFajenseRivals: usedRivals,
         usedEventKeys: nextUsedEventKeys,
-        awardedAutomaticPrizes: awardAutomaticPrizes(s.followers, s.awardedAutomaticPrizes),
+        awardedAutomaticPrizes: nextAwards,
+        pendingPrizeUnlocks: [...s.pendingPrizeUnlocks, ...getAwardIncrements(s.awardedAutomaticPrizes, nextAwards)],
+        contractPerformanceTotal: 0,
+        contractPerformancePeriods: 0,
       };
     });
   }, []);
@@ -2077,8 +2802,20 @@ export default function App() {
       if (!opt) return s;
       const ok = Math.random() < opt.successChance;
       const delta = ok ? opt.success : opt.failure;
-      return { ...s, ...applyDelta(delta, s), phase: "eventResult",
-        lastResult: { eventTitle: ev.title, optionText: opt.text, wasSuccess: ok, delta } };
+      const effectiveDelta = getEffectiveDelta(delta, s);
+      const effectiveState = applyEffectiveDelta(effectiveDelta, s);
+      const nextAwards = ok
+        ? awardSpecialPrizesForSuccessfulEvent(ev.id, effectiveState.awardedAutomaticPrizes, s.currentChannel)
+        : effectiveState.awardedAutomaticPrizes;
+      return {
+        ...s,
+        ...effectiveState,
+        awardedAutomaticPrizes: nextAwards,
+        pendingPrizeUnlocks: [...effectiveState.pendingPrizeUnlocks, ...getAwardIncrements(effectiveState.awardedAutomaticPrizes, nextAwards)],
+        ...updateRecentPerformance(s, ok ? 100 : 0),
+        phase: "eventResult",
+        lastResult: { eventTitle: ev.title, optionText: opt.text, wasSuccess: ok, delta: effectiveDelta },
+      };
     });
   }, []);
 
@@ -2087,7 +2824,7 @@ export default function App() {
       const ev = s.currentEvents[s.eventIndex];
       const nextState = applyDeltas(ev?.consequences ?? [], s);
       if (s.eventIndex < EVENTS_PER_SEASON - 1) return { ...nextState, phase: "event", eventIndex: s.eventIndex + 1 };
-      return { ...nextState, phase: "seasonSummary" };
+      return { ...applySeasonRepercussion(nextState), phase: "seasonSummary" };
     });
   }, []);
 
@@ -2118,7 +2855,7 @@ export default function App() {
       }
 
       if (s.eventIndex < EVENTS_PER_SEASON - 1) return { ...s, phase: "event", eventIndex: s.eventIndex + 1 };
-      return { ...s, phase: "seasonSummary" };
+      return { ...applySeasonRepercussion(s), phase: "seasonSummary" };
     });
   }, []);
 
@@ -2136,11 +2873,12 @@ export default function App() {
     });
   }, []);
 
-  const showHUD = gs.phase !== "intro" && gs.phase !== "naming" && gs.phase !== "gameOver";
+  const handlePrizeUnlockContinue = useCallback(() => {
+    setGs((s) => ({ ...s, pendingPrizeUnlocks: s.pendingPrizeUnlocks.slice(1) }));
+  }, []);
 
   return (
     <div className="min-h-screen bg-background text-foreground" style={{ fontFamily: "'Inter', sans-serif" }}>
-      {showHUD && <HUD gs={gs} />}
       <AnimatePresence mode="wait">
         {gs.phase === "intro" && (
           <motion.div key="intro" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
@@ -2176,6 +2914,11 @@ export default function App() {
           <motion.div key="gameover" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.5 }}>
             <ScreenGameOver gs={gs} />
           </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {gs.pendingPrizeUnlocks[0] && (
+          <PrizeUnlockModal prize={gs.pendingPrizeUnlocks[0]} onContinue={handlePrizeUnlockContinue} />
         )}
       </AnimatePresence>
     </div>

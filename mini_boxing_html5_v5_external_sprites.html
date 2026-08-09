@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no" />
+<title>Mini Boxing Pixel</title>
+<style>
+  :root{
+    --bg:#0a0f1d; --panel:#11172a; --line:#27314d; --ink:#f8fbff;
+    --accent:#ff4d6d; --accent2:#5eead4; --warn:#ffd166;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#090d18;color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  body{display:grid;place-items:center;padding:16px}
+  .wrap{width:min(980px,100%);display:grid;gap:12px}
+  .hud{
+    display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;
+    background:linear-gradient(180deg,#151c33,#0e1426);border:1px solid var(--line);
+    border-radius:16px;padding:12px 14px;box-shadow:0 18px 60px rgba(0,0,0,.35)
+  }
+  .hudBlock{display:grid;gap:5px}
+  .hudBlock.right{text-align:right}
+  .name{font-weight:900;letter-spacing:.08em;font-size:.85rem}
+  .bar{height:13px;border-radius:999px;background:#242c42;overflow:hidden;border:1px solid #39415b}
+  .fill{height:100%;width:100%;background:linear-gradient(90deg,#ff7a18,#ff355d);transition:width .18s ease}
+  .fill.enemy{background:linear-gradient(90deg,#5eead4,#22c55e)}
+  .centerHud{text-align:center;min-width:120px}
+  .round{font-size:.72rem;opacity:.72;letter-spacing:.12em}
+  .status{font-weight:900;color:var(--warn)}
+  .stage{
+    position:relative;border-radius:18px;overflow:hidden;border:1px solid var(--line);
+    background:#09101b;aspect-ratio:16/9;box-shadow:0 20px 70px rgba(0,0,0,.4)
+  }
+  canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
+  .msg{
+    position:absolute;left:50%;top:18%;transform:translate(-50%,-50%);
+    font-size:clamp(1rem,3vw,2rem);font-weight:1000;letter-spacing:.12em;text-transform:uppercase;
+    text-shadow:0 3px 0 #000,0 0 24px rgba(255,209,102,.25);pointer-events:none;opacity:0;transition:opacity .12s ease
+  }
+  .msg.show{opacity:1}
+  .controls{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  button{
+    appearance:none;border:none;border-radius:14px;padding:13px 18px;
+    background:#171f36;color:white;font-weight:900;letter-spacing:.04em;border:1px solid #303a59;
+    box-shadow:0 7px 18px rgba(0,0,0,.25);cursor:pointer;min-width:110px
+  }
+  button:active{transform:translateY(1px)}
+  button.primary{background:linear-gradient(180deg,#ff5c75,#d92f55);border-color:#ff8da0}
+  .help{text-align:center;color:#aeb7cd;font-size:.9rem;line-height:1.45}
+  .kbd{display:inline-block;padding:.08rem .38rem;border:1px solid #46516f;border-radius:6px;background:#151b2c;color:#fff;font-size:.82em}
+  @media (max-width:680px){
+    body{padding:8px}
+    .hud{grid-template-columns:1fr 88px 1fr;padding:9px}
+    .stage{aspect-ratio:4/3}
+    button{flex:1;min-width:0}
+    .help{font-size:.8rem}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hud">
+    <div class="hudBlock">
+      <div class="name">VOS</div>
+      <div class="bar"><div id="playerHp" class="fill"></div></div>
+    </div>
+    <div class="centerHud">
+      <div class="round">ROUND 1</div>
+      <div id="status" class="status">LISTO</div>
+    </div>
+    <div class="hudBlock right">
+      <div class="name">RIVAL</div>
+      <div class="bar"><div id="enemyHp" class="fill enemy"></div></div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <canvas id="game" width="960" height="540"></canvas>
+    <div id="msg" class="msg"></div>
+  </div>
+
+  <div class="controls">
+    <button id="startBtn" class="primary">▶ Iniciar</button>
+    <button id="restartBtn">↻ Reiniciar</button>
+  </div>
+  <div class="controls">
+    <button id="leftBtn">← Esquivar</button>
+    <button id="punchBtn" class="primary">Golpear</button>
+    <button id="rightBtn">Esquivar →</button>
+  </div>
+
+  <div class="help">
+    Teclado:
+    <span class="kbd">A</span>/<span class="kbd">←</span> izquierda,
+    <span class="kbd">D</span>/<span class="kbd">→</span> derecha,
+    <span class="kbd">J</span>/<span class="kbd">Espacio</span> golpear.
+    El rival marca su golpe con una advertencia: esquivá y pegá la contra.
+  </div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  const playerHpEl = document.getElementById('playerHp');
+  const enemyHpEl = document.getElementById('enemyHp');
+  const statusEl = document.getElementById('status');
+  const msgEl = document.getElementById('msg');
+
+  const sprites = {
+    playerIdle: new Image(),
+    playerPunch: new Image(),
+    enemyIdle: new Image(),
+    enemyPunch: new Image()
+  };
+
+  // Los cuatro PNG se cargan desde la misma carpeta que este HTML.
+  sprites.playerIdle.src  = './player_stand.png';
+  sprites.playerPunch.src = './player_attack.png';
+  sprites.enemyIdle.src   = './Enemy_stand.png';
+  sprites.enemyPunch.src  = './Enemy_attack.png';
+
+  // Si falta algún archivo, lo informa en pantalla y en la consola.
+  Object.entries({
+    playerIdle: 'player_stand.png',
+    playerPunch: 'player_attack.png',
+    enemyIdle: 'Enemy_stand.png',
+    enemyPunch: 'Enemy_attack.png'
+  }).forEach(([key, file]) => {
+    sprites[key].addEventListener('error', () => {
+      statusEl.textContent = 'FALTA SPRITE';
+      setMessage('NO SE ENCONTRÓ ' + file, 3000);
+      console.error('No se pudo cargar:', file);
+    });
+  });
+
+  const state = {
+    playerHP: 100,
+    enemyHP: 100,
+    playerLane: 0,
+    playerPunch: 0,
+    playerHurt: 0,
+    enemyHurt: 0,
+    enemyPhase: 'idle',
+    enemyTimer: 900,
+    enemyPunchSide: 0,
+    ended: false,
+    started: false,
+    flash: 0,
+    last: performance.now()
+  };
+
+  function rand(min,max){ return Math.random()*(max-min)+min; }
+
+  function setMessage(text, ms=700){
+    msgEl.textContent = text;
+    msgEl.classList.add('show');
+    clearTimeout(setMessage.t);
+    setMessage.t = setTimeout(()=>msgEl.classList.remove('show'), ms);
+  }
+
+  function updateHUD(){
+    playerHpEl.style.width = Math.max(0,state.playerHP)+'%';
+    enemyHpEl.style.width = Math.max(0,state.enemyHP)+'%';
+  }
+
+  function resetState(startImmediately=false){
+    state.playerHP=100; state.enemyHP=100; state.playerLane=0; state.playerPunch=0;
+    state.playerHurt=0; state.enemyHurt=0; state.enemyPhase='idle'; state.enemyTimer=900;
+    state.enemyPunchSide=0; state.ended=false; state.started=startImmediately; state.flash=0;
+    state.last=performance.now(); updateHUD();
+    statusEl.textContent = startImmediately ? 'FIGHT!' : 'LISTO';
+    setMessage(startImmediately ? 'FIGHT!' : 'PRESIONÁ INICIAR', startImmediately ? 850 : 1400);
+  }
+
+  function startGame(){
+    if(state.started && !state.ended) return;
+    state.started = true; state.ended = false; state.enemyPhase='idle'; state.enemyTimer=900;
+    statusEl.textContent='FIGHT!'; setMessage('FIGHT!',850);
+  }
+
+  function restartGame(){
+    resetState(true);
+  }
+
+  function endGame(win){
+    state.ended = true;
+    state.started = false;
+    state.enemyPhase = 'idle';
+    statusEl.textContent = win ? 'GANASTE' : 'KO';
+    setMessage(win ? '¡VICTORIA!' : '¡KO!', 2200);
+  }
+
+  function dodge(dir){
+    if(state.ended || !state.started) return;
+    state.playerLane = dir;
+    setTimeout(() => {
+      if(!state.ended && state.playerLane === dir) state.playerLane = 0;
+    }, 320);
+  }
+
+  function punch(){
+    if(state.ended || !state.started || state.playerPunch > 0 || state.playerHurt > 0) return;
+    state.playerPunch = 180;
+    const canHit = state.enemyPhase === 'recover' || state.enemyPhase === 'windup' || state.enemyPhase === 'idle';
+    if(canHit){
+      const dmg = state.enemyPhase === 'recover' ? 14 : 8;
+      state.enemyHP = Math.max(0, state.enemyHP - dmg);
+      state.enemyHurt = 170;
+      state.flash = 80;
+      setMessage(dmg >= 14 ? '¡Contra!' : '¡Golpe!', 420);
+      updateHUD();
+      if(state.enemyHP <= 0) endGame(true);
+    }
+  }
+
+  function enemyAttackCycle(dt){
+    if(state.ended || !state.started) return;
+    state.enemyTimer -= dt;
+    if(state.enemyTimer > 0) return;
+
+    if(state.enemyPhase === 'idle'){
+      state.enemyPhase = 'windup';
+      state.enemyPunchSide = Math.random() < .5 ? -1 : 1;
+      state.enemyTimer = 520;
+      statusEl.textContent = state.enemyPunchSide < 0 ? '¡OJO IZQ!' : '¡OJO DER!';
+    } else if(state.enemyPhase === 'windup'){
+      state.enemyPhase = 'punch';
+      state.enemyTimer = 140;
+
+      if(state.playerLane === 0){
+        state.playerHP = Math.max(0, state.playerHP - 18);
+        state.playerHurt = 220;
+        state.flash = 120;
+        setMessage('¡Te pegó!', 500);
+        updateHUD();
+        if(state.playerHP <= 0) endGame(false);
+      } else {
+        setMessage('¡Esquiva!', 420);
+      }
+    } else if(state.enemyPhase === 'punch'){
+      state.enemyPhase = 'recover';
+      state.enemyTimer = 520;
+      statusEl.textContent = '¡Ahora!';
+    } else {
+      state.enemyPhase = 'idle';
+      state.enemyTimer = rand(850, 1500);
+      statusEl.textContent = 'FIGHT!';
+    }
+  }
+
+  function drawRing(){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle = '#13c8a6';
+    ctx.fillRect(0,0,W,H);
+
+    ctx.fillStyle = '#121827';
+    ctx.fillRect(0,0,W,92);
+    ctx.fillStyle = '#ff9f1c';
+    for(let y=8;y<80;y+=22){
+      for(let x=8;x<W;x+=28){
+        ctx.fillRect(x,y,14,10);
+        ctx.fillStyle = '#111827';
+        ctx.fillRect(x+4,y+2,3,3);
+        ctx.fillRect(x+9,y+2,3,3);
+        ctx.fillStyle = '#ff9f1c';
+      }
+    }
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(0,82,W,8);
+    ctx.fillRect(0,110,W,8);
+    ctx.fillStyle = '#fb7185';
+    ctx.fillRect(0,90,W,5);
+    ctx.fillRect(0,118,W,5);
+
+    ctx.fillStyle = '#20d7b8';
+    ctx.fillRect(0,123,W,H-123);
+    ctx.strokeStyle = 'rgba(255,255,255,.18)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0,H);ctx.lineTo(W*.34,170);
+    ctx.moveTo(W,H);ctx.lineTo(W*.66,170);
+    ctx.stroke();
+  }
+
+  function drawShadow(x,y,w,h,alpha=.22){
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(x,y,w,h,0,0,Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawEnemy(){
+    const img = state.enemyPhase === 'punch' ? sprites.enemyPunch : sprites.enemyIdle;
+    const x = W/2 + (state.enemyHurt>0 ? 14*Math.sin(performance.now()/35) : 0) + (state.enemyPhase==='windup' ? state.enemyPunchSide*22 : 0);
+    const y = 160;
+    const dw = 290, dh = 400;
+    drawShadow(x, y+198, 85, 18, .24);
+    ctx.drawImage(img, x - dw/2, y - dh/2, dw, dh);
+
+    if(state.enemyPhase === 'windup'){
+      ctx.save();
+      ctx.globalAlpha = .95;
+      ctx.fillStyle = '#ffd166';
+      const wx = x + state.enemyPunchSide*80;
+      ctx.beginPath();
+      ctx.arc(wx, 120, 13, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function drawPlayer(){
+    const img = state.playerPunch > 0 ? sprites.playerPunch : sprites.playerIdle;
+    const x = W/2 + state.playerLane*150;
+    const y = 428 + (state.playerHurt>0 ? Math.sin(performance.now()/25)*7 : 0);
+    const dw = 250, dh = 375;
+    drawShadow(x, y+138, 70, 14, .26);
+    ctx.drawImage(img, x - dw/2, y - dh/2, dw, dh);
+  }
+
+  function draw(){
+    drawRing();
+    drawEnemy();
+    drawPlayer();
+
+    if(state.flash>0){
+      ctx.fillStyle = `rgba(255,255,255,${Math.min(.25,state.flash/350)})`;
+      ctx.fillRect(0,0,W,H);
+    }
+  }
+
+  function update(t){
+    const dt = Math.min(34, t - state.last);
+    state.last = t;
+    if(state.playerPunch>0) state.playerPunch=Math.max(0,state.playerPunch-dt);
+    if(state.playerHurt>0) state.playerHurt=Math.max(0,state.playerHurt-dt);
+    if(state.enemyHurt>0) state.enemyHurt=Math.max(0,state.enemyHurt-dt);
+    if(state.flash>0) state.flash=Math.max(0,state.flash-dt);
+    enemyAttackCycle(dt);
+    draw();
+    requestAnimationFrame(update);
+  }
+
+  function onKey(e){
+    const key = e.key.toLowerCase();
+    if(['arrowleft','arrowright',' ','a','d','j'].includes(key)) e.preventDefault();
+    if(key==='a' || key==='arrowleft') dodge(-1);
+    if(key==='d' || key==='arrowright') dodge(1);
+    if(key==='j' || key===' ') punch();
+  }
+  addEventListener('keydown', onKey);
+
+  function bind(id, fn){
+    const el = document.getElementById(id);
+    el.addEventListener('click', fn);
+    el.addEventListener('pointerdown', e => { e.preventDefault(); fn(); });
+  }
+
+  bind('startBtn', startGame);
+  bind('restartBtn', restartGame);
+  bind('leftBtn', () => dodge(-1));
+  bind('rightBtn', () => dodge(1));
+  bind('punchBtn', punch);
+
+  resetState(false);
+  requestAnimationFrame(update);
+})();
+</script>
+</body>
+</html>

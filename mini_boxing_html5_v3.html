@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>Mini Boxing</title>
+<style>
+  :root{--bg:#0b1020;--panel:#11172a;--ink:#f6f7fb;--accent:#ff4d6d;--accent2:#5eead4;--gold:#ffd166}
+  *{box-sizing:border-box} html,body{margin:0;height:100%;background:#090d18;color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  body{display:grid;place-items:center;padding:16px}.wrap{width:min(960px,100%);display:grid;gap:12px}
+  .hud{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;background:linear-gradient(180deg,#151c33,#0e1426);border:1px solid #26304e;border-radius:16px;padding:12px 14px;box-shadow:0 18px 60px rgba(0,0,0,.35)}
+  .hudBlock{display:grid;gap:5px}.hudBlock.right{text-align:right}.name{font-weight:900;letter-spacing:.08em;font-size:.85rem}.bar{height:13px;border-radius:999px;background:#242c42;overflow:hidden;border:1px solid #39415b}.fill{height:100%;width:100%;background:linear-gradient(90deg,#ff7a18,#ff355d);transition:width .18s ease}.fill.enemy{background:linear-gradient(90deg,#5eead4,#22c55e)}
+  .centerHud{text-align:center;min-width:110px}.centerHud .round{font-size:.72rem;opacity:.72;letter-spacing:.12em}.centerHud .status{font-weight:900;color:var(--gold)}
+  .stage{position:relative;border-radius:18px;overflow:hidden;border:1px solid #26304e;background:#09101b;aspect-ratio:16/9;box-shadow:0 20px 70px rgba(0,0,0,.4)}
+  canvas{display:block;width:100%;height:100%;image-rendering:pixelated}.msg{position:absolute;left:50%;top:18%;transform:translate(-50%,-50%);font-size:clamp(1rem,3vw,2rem);font-weight:1000;letter-spacing:.12em;text-transform:uppercase;text-shadow:0 3px 0 #000,0 0 24px rgba(255,209,102,.25);pointer-events:none;opacity:0;transition:opacity .12s ease}.msg.show{opacity:1}
+  .controls{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}button{appearance:none;border:none;border-radius:14px;padding:13px 18px;background:#171f36;color:white;font-weight:900;letter-spacing:.04em;border:1px solid #303a59;box-shadow:0 7px 18px rgba(0,0,0,.25);cursor:pointer;min-width:110px}button:active{transform:translateY(1px)}button.punch{background:linear-gradient(180deg,#ff5c75,#d92f55);border-color:#ff8da0}
+  .help{text-align:center;color:#aeb7cd;font-size:.9rem;line-height:1.45}.kbd{display:inline-block;padding:.08rem .38rem;border:1px solid #46516f;border-radius:6px;background:#151b2c;color:#fff;font-size:.82em}
+  @media (max-width:680px){body{padding:8px}.hud{grid-template-columns:1fr 84px 1fr;padding:9px}.stage{aspect-ratio:4/3}button{flex:1;min-width:0}.help{font-size:.8rem}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hud">
+    <div class="hudBlock"><div class="name">VOS</div><div class="bar"><div id="playerHp" class="fill"></div></div></div>
+    <div class="centerHud"><div class="round">ROUND 1</div><div id="status" class="status">FIGHT!</div></div>
+    <div class="hudBlock right"><div class="name">RIVAL</div><div class="bar"><div id="enemyHp" class="fill enemy"></div></div></div>
+  </div>
+  <div class="stage"><canvas id="game" width="960" height="540"></canvas><div id="msg" class="msg"></div></div>
+  <div class="controls">
+    <button id="startBtn" class="punch">▶ Iniciar</button>
+    <button id="restartBtn">↻ Reiniciar</button>
+  </div>
+  <div class="controls">
+    <button id="leftBtn">← Esquivar</button>
+    <button id="punchBtn" class="punch">Golpear</button>
+    <button id="rightBtn">Esquivar →</button>
+  </div>
+  <div class="help">Teclado: <span class="kbd">A</span>/<span class="kbd">←</span> izquierda, <span class="kbd">D</span>/<span class="kbd">→</span> derecha, <span class="kbd">J</span>/<span class="kbd">Espacio</span> golpear. El rival levanta un guante antes de atacar: esquivá hacia un costado.</div>
+</div>
+<script>
+(() => {
+  const canvas = document.getElementById('game'); const ctx = canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+  const playerHpEl=document.getElementById('playerHp'),enemyHpEl=document.getElementById('enemyHp'),statusEl=document.getElementById('status'),msgEl=document.getElementById('msg');
+  const state={playerHP:100,enemyHP:100,playerLane:0,playerPunch:0,playerHurt:0,enemyHurt:0,enemyPhase:'idle',enemyTimer:900,enemyPunchSide:0,ended:false,started:false,flash:0,last:performance.now()};
+  const rand=(a,b)=>Math.random()*(b-a)+a;
+  function setMessage(text,ms=700){msgEl.textContent=text;msgEl.classList.add('show');clearTimeout(setMessage.t);setMessage.t=setTimeout(()=>msgEl.classList.remove('show'),ms)}
+  function updateHUD(){playerHpEl.style.width=Math.max(0,state.playerHP)+'%';enemyHpEl.style.width=Math.max(0,state.enemyHP)+'%'}
+  function dodge(dir){if(state.ended||!state.started)return;state.playerLane=dir;setTimeout(()=>{if(!state.ended&&state.playerLane===dir)state.playerLane=0},320)}
+  function punch(){if(state.ended||!state.started||state.playerPunch>0||state.playerHurt>0)return;state.playerPunch=180;const canHit=['recover','windup','idle'].includes(state.enemyPhase);if(canHit){const dmg=state.enemyPhase==='recover'?14:8;state.enemyHP=Math.max(0,state.enemyHP-dmg);state.enemyHurt=170;state.flash=80;setMessage(dmg>=14?'¡Contra!':'¡Golpe!',420);updateHUD();if(state.enemyHP<=0)endGame(true)}}
+  function endGame(win){
+    state.ended=true;
+    state.started=false;
+    state.enemyPhase='idle';
+    statusEl.textContent=win?'GANASTE':'KO';
+    setMessage(win?'¡VICTORIA!':'¡KO!',2200);
+  }
+
+  function resetState(startImmediately=false){
+    state.playerHP=100;
+    state.enemyHP=100;
+    state.playerLane=0;
+    state.playerPunch=0;
+    state.playerHurt=0;
+    state.enemyHurt=0;
+    state.enemyPhase='idle';
+    state.enemyTimer=900;
+    state.enemyPunchSide=0;
+    state.ended=false;
+    state.started=startImmediately;
+    state.flash=0;
+    state.last=performance.now();
+    updateHUD();
+
+    if(startImmediately){
+      statusEl.textContent='FIGHT!';
+      setMessage('FIGHT!',850);
+    }else{
+      statusEl.textContent='LISTO';
+      setMessage('PRESIONÁ INICIAR',1400);
+    }
+  }
+
+  function startGame(){
+    if(state.started && !state.ended) return;
+    if(state.ended || state.playerHP<=0 || state.enemyHP<=0){
+      resetState(true);
+      return;
+    }
+    state.started=true;
+    state.ended=false;
+    state.enemyPhase='idle';
+    state.enemyTimer=900;
+    state.last=performance.now();
+    statusEl.textContent='FIGHT!';
+    setMessage('FIGHT!',850);
+  }
+
+  function restartGame(){
+    resetState(true);
+  }
+  function enemyAttackCycle(dt){if(state.ended||!state.started)return;state.enemyTimer-=dt;if(state.enemyTimer>0)return;if(state.enemyPhase==='idle'){state.enemyPhase='windup';state.enemyPunchSide=Math.random()<.5?-1:1;state.enemyTimer=520;statusEl.textContent=state.enemyPunchSide<0?'¡OJO IZQ!':'¡OJO DER!'}else if(state.enemyPhase==='windup'){state.enemyPhase='punch';state.enemyTimer=120;if(state.playerLane===0){state.playerHP=Math.max(0,state.playerHP-18);state.playerHurt=220;state.flash=120;setMessage('¡Te pegó!',500);updateHUD();if(state.playerHP<=0)endGame(false)}else setMessage('¡Esquiva!',420)}else if(state.enemyPhase==='punch'){state.enemyPhase='recover';state.enemyTimer=520;statusEl.textContent='¡Ahora!'}else{state.enemyPhase='idle';state.enemyTimer=rand(850,1500);statusEl.textContent='FIGHT!'}}
+  function drawRing(){ctx.fillStyle='#13c8a6';ctx.fillRect(0,0,W,H);ctx.fillStyle='#121827';ctx.fillRect(0,0,W,92);ctx.fillStyle='#ff9f1c';for(let y=8;y<80;y+=22){for(let x=8;x<W;x+=28){ctx.fillRect(x,y,14,10);ctx.fillStyle='#111827';ctx.fillRect(x+4,y+2,3,3);ctx.fillRect(x+9,y+2,3,3);ctx.fillStyle='#ff9f1c'}}ctx.fillStyle='#f8fafc';ctx.fillRect(0,82,W,8);ctx.fillRect(0,110,W,8);ctx.fillStyle='#fb7185';ctx.fillRect(0,90,W,5);ctx.fillRect(0,118,W,5);ctx.fillStyle='#20d7b8';ctx.fillRect(0,123,W,H-123);ctx.strokeStyle='rgba(255,255,255,.18)';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(0,H);ctx.lineTo(W*.34,170);ctx.moveTo(W,H);ctx.lineTo(W*.66,170);ctx.stroke()}
+  function drawEnemy(){const cx=W/2;let y=220,lean=state.enemyHurt>0?16*Math.sin(performance.now()/35):0,wind=state.enemyPhase==='windup',punching=state.enemyPhase==='punch',side=state.enemyPunchSide||1;ctx.save();ctx.translate(cx+lean,y);ctx.fillStyle='#111827';ctx.fillRect(-44,120,34,90);ctx.fillRect(10,120,34,90);ctx.fillStyle='#0f172a';ctx.fillRect(-54,195,48,24);ctx.fillRect(8,195,48,24);ctx.fillStyle='#0b0f18';ctx.fillRect(-62,84,124,60);ctx.fillStyle='#22c55e';ctx.fillRect(-62,84,124,10);ctx.fillStyle='#9a4c24';ctx.beginPath();ctx.ellipse(0,40,72,92,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(0,-65,42,50,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#1a0d08';ctx.fillRect(-33,-108,66,24);ctx.fillRect(-30,-88,60,12);ctx.fillStyle='#0b0b0b';ctx.fillRect(-17,-68,7,7);ctx.fillRect(10,-68,7,7);ctx.lineCap='round';ctx.strokeStyle='#9a4c24';ctx.lineWidth=34;let lx=-60,ly=15,rx=60,ry=15;if(wind){if(side<0){lx=-88;ly=-22}else{rx=88;ry=-22}}if(punching){if(side<0){lx=-10;ly=95}else{rx=10;ry=95}}ctx.beginPath();ctx.moveTo(-44,5);ctx.lineTo(lx,ly);ctx.stroke();ctx.beginPath();ctx.moveTo(44,5);ctx.lineTo(rx,ry);ctx.stroke();ctx.fillStyle='#ef4444';ctx.beginPath();ctx.arc(lx,ly,28,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(rx,ry,28,0,Math.PI*2);ctx.fill();ctx.restore()}
+  function drawPlayer(){const baseX=W/2+state.playerLane*150,y=452+(state.playerHurt>0?Math.sin(performance.now()/25)*7:0);ctx.save();ctx.translate(baseX,y);ctx.fillStyle='#111827';ctx.fillRect(-20,-5,40,60);ctx.fillStyle='#3b82f6';ctx.fillRect(-40,45,80,38);ctx.fillStyle='#f0b48d';ctx.beginPath();ctx.arc(0,-35,28,0,Math.PI*2);ctx.fill();ctx.fillStyle='#111827';ctx.beginPath();ctx.arc(0,-45,25,Math.PI,Math.PI*2);ctx.fill();const p=state.playerPunch>0?Math.sin((180-state.playerPunch)/180*Math.PI):0,reach=p*68;ctx.strokeStyle='#f0b48d';ctx.lineWidth=18;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-15,-15);ctx.lineTo(-38,-38-reach);ctx.stroke();ctx.beginPath();ctx.moveTo(15,-15);ctx.lineTo(38,-38-reach);ctx.stroke();ctx.fillStyle='#f8fafc';ctx.beginPath();ctx.arc(-42,-43-reach,18,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(42,-43-reach,18,0,Math.PI*2);ctx.fill();ctx.restore()}
+  function draw(){drawRing();drawEnemy();drawPlayer();if(state.enemyPhase==='windup'){ctx.save();ctx.globalAlpha=.8;ctx.fillStyle='#ffd166';const x=W/2+state.enemyPunchSide*120;ctx.beginPath();ctx.arc(x,165,13,0,Math.PI*2);ctx.fill();ctx.restore()}if(state.flash>0){ctx.fillStyle=`rgba(255,255,255,${Math.min(.25,state.flash/350)})`;ctx.fillRect(0,0,W,H)}}
+  function update(t){const dt=Math.min(34,t-state.last);state.last=t;if(state.playerPunch>0)state.playerPunch=Math.max(0,state.playerPunch-dt);if(state.playerHurt>0)state.playerHurt=Math.max(0,state.playerHurt-dt);if(state.enemyHurt>0)state.enemyHurt=Math.max(0,state.enemyHurt-dt);if(state.flash>0)state.flash=Math.max(0,state.flash-dt);enemyAttackCycle(dt);draw();requestAnimationFrame(update)}
+  addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(['arrowleft','arrowright',' ','a','d','j'].includes(k))e.preventDefault();if(k==='a'||k==='arrowleft')dodge(-1);if(k==='d'||k==='arrowright')dodge(1);if(k==='j'||k===' ')punch()});
+  const bind=(id,fn)=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    el.addEventListener('click',e=>{e.preventDefault();fn()});
+  };
+  bind('leftBtn',()=>dodge(-1));
+  bind('rightBtn',()=>dodge(1));
+  bind('punchBtn',punch);
+  bind('startBtn',startGame);
+  bind('restartBtn',restartGame);
+
+  resetState(false);
+  requestAnimationFrame(update);
+})();
+</script>
+</body>
+</html>

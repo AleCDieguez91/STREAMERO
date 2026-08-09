@@ -94,7 +94,7 @@ Alzás el cinturón con orgullo.
 
 CONSECUENCIAS:
 
-+2k Seguidores
++10k Seguidores +10 popularidad
 
 
 
@@ -102,13 +102,13 @@ SALE MAL:
 
 Te pasaste un poco y {RIVAL} termina internado.
 
-En redes te llaman "Asesino". El cinturón te llega por correo diez días después junto con un telegrama de despido.
+En redes te llaman "Asesino". El cinturón te llega por correo diez días después pero se lo regalás a tu rival.
 
 
 
 CONSECUENCIAS:
 
-\[DIRECTO A MERCADO DE PASES. ORTERIX NO SALDRÁ MÁS DURANTE ESA PARTIDA]
+\-5k Seguidores -5 popularidad
 
 
 
@@ -144,7 +144,7 @@ Ganás por puntos.
 
 CONSECUENCIAS:
 
-+2k Seguidores
++6k Seguidores +3 popularidad
 
 
 
@@ -160,16 +160,18 @@ Los memes duran semanas.
 
 CONSECUENCIAS:
 
-\-1k Seguidores
+\-1k Seguidores -3 popularidad
 
 
 
 ==================================================…
 
+
 EVENTO: ORTERIX_002
 CANAL: ORTERIX
 APARICION: UNA_VEZ
 MOMENTO: [A PARTIR DE LA SEGUNDA TEMPORADA]
+
 RAREZA: RARO
 TITULO: COBRAR EN PARTES
 DESCRIPCION: Wario Gerpolini te ofrece pagarte el sueldo en 3 partes por cuestiones que ni él te sabe explicar.
@@ -188,7 +190,9 @@ SUBTITULO: "Necesito la guita"
 PROBABILIDAD: 5%
 SALE BIEN: Wario te ve como una persona con convicciones firmes y decide ponerte en blanco.
 CONSECUENCIAS: +20 reputacion
+
 SALE MAL: Wario sonríe y te da una palmada en la espalda. Esa misma tarde recibís un whatsapp diciendo que rescinden de tus servicios.
 CONSECUENCIAS: [DIRECTO A MERCADO DE PASES. ORTERIX NO SALDRÁ MÁS DURANTE ESA PARTIDA]
-
 ==================================================
+
+
