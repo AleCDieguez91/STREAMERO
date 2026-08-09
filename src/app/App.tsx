@@ -2163,7 +2163,7 @@ function ScreenFirstContract({ gs, offers, onChoose }: { gs: GameState; offers: 
 }
 
 function ScreenStandardTransferMarket({ gs, onChoose }: { gs: GameState; onChoose: (ch: Channel) => void }) {
-  const [offers] = useState<Channel[]>(() => buildOffers(gs));
+  const [offers] = useState<Channel[]>(() => buildOffers(gs.currentChannel, gs.isFirstMarket, gs.renderSold, gs.excludedChannels));
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const selectedInfo = selectedChannel ? CHANNELS[selectedChannel] ?? FALLBACK_CHANNEL : null;
   const isRenewal = selectedChannel === gs.currentChannel;
@@ -2227,7 +2227,7 @@ function ScreenStandardTransferMarket({ gs, onChoose }: { gs: GameState; onChoos
 function ScreenTransferMarket({ gs, onChoose }: { gs: GameState; onChoose: (ch: Channel) => void }) {
   // Lfunction ScreenTransferMarketa primera contratación conserva sus textos de introducción. Los mercados siguientes
   // usan las mismas tarjetas y confirmación, pero reciben ofertas calculadas con la carrera.
-  const [firstOffers] = useState<Channel[]>(() => buildOffers(gs));
+  const [firstOffers] = useState<Channel[]>(() => buildOffers(gs.currentChannel, gs.isFirstMarket, gs.renderSold, gs.excludedChannels));
 
   if (gs.isFirstMarket) {
     return <ScreenFirstContract gs={gs} offers={firstOffers} onChoose={onChoose} />;
