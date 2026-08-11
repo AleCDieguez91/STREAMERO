@@ -208,7 +208,7 @@ type Channel =
 
 interface StatDelta {
   followers: number;
-  money?: number;
+  reputation?: number;
   reputation?: number;
   message: string;
   specialOutcome?: "forcedTransfer";
@@ -697,11 +697,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "ORTERIX cubre en vivo el festival de rock más grande del año. Azuquita Rodrigues te nomina para la transmisión principal.",
       options: [
         { text: "Tomar la conducción del stream completo", detail: "Protagonismo total, riesgo total.", successChance: 0.52,
-          success: { followers: 11000, money: 5, message: "Robaste el show. La transmisión fue lo más visto del festival." },
-          failure: { followers: -4000, money: 0, message: "Los nervios se notaron demasiado. La audiencia no perdonó." } },
+          success: { followers: 11000, reputation: 5, message: "Robaste el show. La transmisión fue lo más visto del festival." },
+          failure: { followers: -1000, reputation: 0, message: "Los nervios se notaron demasiado. La audiencia no perdonó." } },
         { text: "Cubrir el backstage con entrevistas", detail: "Contenido cercano, menos presión.", successChance: 0.74,
-          success: { followers: 6000, money: 3, message: "Entrevistas espontáneas que se convirtieron en los clips de la noche." },
-          failure: { followers: 800, money: 1, message: "Cobertura correcta pero sin momentos que se recuerden." } },
+          success: { followers: 6000, reputation: 3, message: "Entrevistas espontáneas que se convirtieron en los clips de la noche." },
+          failure: { followers: 800, reputation: 1, message: "Cobertura correcta pero sin momentos que se recuerden." } },
       ],
     },
     {
@@ -709,11 +709,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Azuquita Rodrigues lanza un desafío de humor en vivo y te menciona por nombre. Millones miran.",
       options: [
         { text: "Sumarte sin pensarlo", detail: "Pura reacción, sin calcular.", successChance: 0.5,
-          success: { followers: 13000, money: 3, message: "La reacción genuina hizo explotar el chat. Clips por todos lados." },
-          failure: { followers: -5000, money: 0, message: "No era tu momento. La comparación con Azuquita fue cruel." } },
+          success: { followers: 13000, reputation: 3, message: "La reacción genuina hizo explotar el chat. Clips por todos lados." },
+          failure: { followers: -1000, reputation: 0, message: "No era tu momento. La comparación con Azuquita fue cruel." } },
         { text: "Responder con tu propio bit preparado", detail: "Controlás la situación.", successChance: 0.63,
-          success: { followers: 8000, money: 2, message: "Sorprendiste a todos con un bit propio. Ganaste terreno en ORTERIX." },
-          failure: { followers: -2000, money: 0, message: "El bit preparado se notó demasiado. Se rieron de vos, no con vos." } },
+          success: { followers: 8000, reputation: 2, message: "Sorprendiste a todos con un bit propio. Ganaste terreno en ORTERIX." },
+          failure: { followers: -2000, reputation: 0, message: "El bit preparado se notó demasiado. Se rieron de vos, no con vos." } },
       ],
     },
     {
@@ -721,11 +721,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "ORTERIX organiza un panel donde cada uno dice su opinión más polémica sobre deporte. Todos miran.",
       options: [
         { text: "El hot take más arriesgado que tenés", detail: "Decir lo que nadie se anima.", successChance: 0.44,
-          success: { followers: 5000, money: 4, message: "Tu opinión explotó en redes. Mitad te odia, mitad te adora. Ambos te siguen." },
-          failure: { followers: -8000, money: 0, message: "La opinión cayó fatal. Trending topic por las razones equivocadas." } },
+          success: { followers: 5000, reputation: 4, message: "Tu opinión explotó en redes. Mitad te odia, mitad te adora. Ambos te siguen." },
+          failure: { followers: -2000, reputation: 0, message: "La opinión cayó fatal. Trending topic por las razones equivocadas." } },
         { text: "Opinión fuerte pero con respaldo", detail: "Polémica con argumentos.", successChance: 0.67,
-          success: { followers: 1000, money: 2, message: "Posición sólida. La audiencia te tomó en serio y siguió el debate." },
-          failure: { followers: -2000, money: 0, message: "Quedó como una opinión a medias. No convenció a nadie." } },
+          success: { followers: 1000, reputation: 2, message: "Posición sólida. La audiencia te tomó en serio y siguió el debate." },
+          failure: { followers: -2000, reputation: 0, message: "Quedó como una opinión a medias. No convenció a nadie." } },
       ],
     },
     {
@@ -733,11 +733,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "El streamer estrella de ORTERIX te propone hacer un stream conjunto. Es un salto enorme de visibilidad.",
       options: [
         { text: "Aceptar y cederle el protagonismo", detail: "Venir a sumar, no a competir.", successChance: 0.68,
-          success: { followers: 4000, money: 4, message: "El stream fue un éxito. La comunidad de Azuquita te adoptó." },
-          failure: { followers: -300, money: 0, message: "Quedaste opacado. La audiencia ni te registró al lado suyo." } },
+          success: { followers: 4000, reputation: 4, message: "El stream fue un éxito. La comunidad de Azuquita te adoptó." },
+          failure: { followers: -300, reputation: 0, message: "Quedaste opacado. La audiencia ni te registró al lado suyo." } },
         { text: "Proponer un formato donde los dos brillen", detail: "Negociar los términos creativos.", successChance: 0.48,
-          success: { followers: 6000, money: 6, message: "El formato fue brillante. Ambos crecieron. Hablan de ustedes como dupla." },
-          failure: { followers: -600, money: 0, message: "La negociación enfrió la idea. La collab salió sin la energía del principio." } },
+          success: { followers: 6000, reputation: 6, message: "El formato fue brillante. Ambos crecieron. Hablan de ustedes como dupla." },
+          failure: { followers: -600, reputation: 0, message: "La negociación enfrió la idea. La collab salió sin la energía del principio." } },
       ],
     },
     {
@@ -745,11 +745,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "ORTERIX organiza su maratón anual y te quieren como uno de los protagonistas. 12 horas en vivo.",
       options: [
         { text: "Estar las 12 horas sin parar", detail: "Compromiso total con el evento.", successChance: 0.46,
-          success: { followers: 14000, money: 5, message: "Llegaste al final. El chat enloqueció en la hora 12. Histórico." },
-          failure: { followers: 2000, money: 1, message: "Te quedaste dormido en hora 9. El clip se viralizó, pero no como querías." } },
+          success: { followers: 14000, reputation: 5, message: "Llegaste al final. El chat enloqueció en la hora 12. Histórico." },
+          failure: { followers: 2000, reputation: 1, message: "Te quedaste dormido en hora 9. El clip se viralizó, pero no como querías." } },
         { text: "Hacer los horarios pico y descansar", detail: "Calidad sobre cantidad.", successChance: 0.74,
-          success: { followers: 7000, money: 2, message: "Cada aparición fue de alto nivel. El canal quedó muy conforme." },
-          failure: { followers: 1000, money: 1, message: "Tu ausencia en horas clave fue notada. No causaste impacto." } },
+          success: { followers: 7000, reputation: 2, message: "Cada aparición fue de alto nivel. El canal quedó muy conforme." },
+          failure: { followers: 1000, reputation: 1, message: "Tu ausencia en horas clave fue notada. No causaste impacto." } },
       ],
     },
     {
@@ -759,11 +759,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       forceAsLast: true,
       options: [
         { text: "Entrenar a fondo", detail: "A darlo todo", successChance: 0.50,
-          success: { followers: 2000, money: 0, message: "Noqueas a {RIVAL} en el primer Round. Alzas el cinto con orgullo" },
+          success: { followers: 2000, reputation: 0, message: "Noqueas a {RIVAL} en el primer Round. Alzas el cinto con orgullo" },
           failure: { followers: -5000, reputation: -5, message: "Te pasaste un poco y {RIVAL} termina internado.\nEn redes te llaman \"Asesino\". El cinturón se lo dan a tu rival para fomentar el Fair Play." } },
         { text: "Apenas entrenas", detail: "Total es todo show", successChance: 0.50,
-          success: { followers: 2000, money: 0, message: "Ninguno de los 2 emboca una piña pero el público se caga de risa. Ganás por puntos." },
-          failure: { followers: -1000, money: 0, message: "Te quedás sin aire al minuto de pelea, {RIVAL} no perdona y te noquea. Te boludean en twitter por semanas" } },
+          success: { followers: 2000, reputation: 0, message: "Ninguno de los 2 emboca una piña pero el público se caga de risa. Ganás por puntos." },
+          failure: { followers: -1000, reputation: 0, message: "Te quedás sin aire al minuto de pelea, {RIVAL} no perdona y te noquea. Te boludean en twitter por semanas" } },
       ],
     },
   ],
@@ -774,11 +774,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Migue Granate te invita a su segmento estrella de improvisación. El caos es el formato y las reglas no existen.",
       options: [
         { text: "Soltar todo, puro instinto", detail: "Sin preparación, sin freno.", successChance: 0.48,
-          success: { followers: 17000, money: 5, message: "Fue el segmento más visto del mes. Migue te abrazó al terminar." },
-          failure: { followers: -8000, money: 0, message: "Te bloqueaste en vivo. El silencio fue incómodo para todos." } },
+          success: { followers: 17000, reputation: 5, message: "Fue el segmento más visto del mes. Migue te abrazó al terminar." },
+          failure: { followers: -500, reputation: -1, message: "Te bloqueaste en vivo. El silencio fue incómodo para todos." } },
         { text: "Preparar algunos bits de antemano", detail: "Improvisación con estructura.", successChance: 0.70,
-          success: { followers: 9000, money: 3, message: "La preparación se notó de buena manera. Sólido y entretenido." },
-          failure: { followers: -2000, money: 0, message: "Los bits preparados chocaron con el caos de Migue. No fluyó." } },
+          success: { followers: 9000, reputation: 3, message: "La preparación se notó de buena manera. Sólido y entretenido." },
+          failure: { followers: -200, reputation: -1, message: "Los bits preparados chocaron con el caos de Migue. No fluyó." } },
       ],
     },
     {
@@ -786,11 +786,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Trajiste a la estrella infantil Jota a tu programa y el estudio se lleno de niños, le acercás el micrófono a uno de ellos. El nene grita \"TODOS ACÁ ODIAMOS AL PRESIDENTE\".",
       options: [
         { text: "Le sacás el micrófono y cambias de tema", detail: "No querés quilombo.", successChance: 0.60,
-          success: { followers: 1000, money: 0, message: "Fuiste rápido y nadie se dio cuenta. La entrevista siguió su curso." },
-          failure: { followers: -5000, money: 0, message: "En el arrebato le pegás al nene sin querer y este llora. Las redes te matan." } },
+          success: { followers: 1000, reputation: 0, message: "Fuiste rápido y nadie se dio cuenta. La entrevista siguió su curso." },
+          failure: { followers: -5000, reputation: 0, message: "En el arrebato le pegás al nene sin querer y este llora. Las redes te matan." } },
         { text: "Te reís de la ocurrencia", detail: "Confiemos en el caos.", successChance: 0.40,
-          success: { followers: 2000, money: 0, message: "Tu risa contagia al resto del equipo. Queda como un clip gracioso." },
-          failure: { followers: -2000, money: 0, message: "En las redes te tildan de golpista. El presidente comparte el clip y comenta \"Asi operan los zurdos\"." } },
+          success: { followers: 2000, reputation: 0, message: "Tu risa contagia al resto del equipo. Queda como un clip gracioso." },
+          failure: { followers: -2000, reputation: 0, message: "En las redes te tildan de golpista. El presidente comparte el clip y comenta \"Asi operan los zurdos\"." } },
       ],
     },
     {
@@ -798,11 +798,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "En una lluvia de ideas dijiste que querías hacer una parodia del pesebre. Lo llevaste a cabo, te pusiste un pañal y fingiste ser Jesús pero a la gente no le gustó.",
       options: [
         { text: "Pedís disculpas al día siguiente", detail: "Con eso no se jode", successChance: 0.70,
-          success: { followers: 500, money: 0, message: "La mayoría te perdona y pasas página rápido" },
-          failure: { followers: -5000, money: 0, message: "No lograste sonar convincente y te reíste de los nervios. Peor." } },
+          success: { followers: 500, reputation: 0, message: "La mayoría te perdona y pasas página rápido" },
+          failure: { followers: -5000, reputation: 0, message: "No lograste sonar convincente y te reíste de los nervios. Peor." } },
         { text: "Defendés el sketch", detail: "El humor sana", successChance: 0.30,
-          success: { followers: 8000, money: 0, message: "Das un discurso sobre la doble moral y sobre el humor. Te los metiste a todos en el bolsillo" },
-          failure: { followers: 0, money: 0, message: "Granate te llama en privado y te echa.", specialOutcome: "forcedTransfer" } },
+          success: { followers: 8000, reputation: 0, message: "Das un discurso sobre la doble moral y sobre el humor. Te los metiste a todos en el bolsillo" },
+          failure: { followers: 0, reputation: 0, message: "Granate te llama en privado y te echa.", specialOutcome: "forcedTransfer" } },
       ],
     },
     {
@@ -810,11 +810,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Traes a todo el elenco de RadioMatch, un programa de los '90 querido y odiado por igual. ¿Cómo encarás el programa?",
       options: [
         { text: "Homenajear a RadioMatch al 100%", detail: "El humor no caduca", successChance: 0.50,
-          success: { followers: 3000, money: 0, message: "Producción ríe, el chat ríe, las redes también. Tu niño interior esta feliz" },
-          failure: { followers: -3000, money: 0, message: "Al 3er chiste de suegras las visitas caen. El humor evolucionó, vos no." } },
+          success: { followers: 3000, reputation: 0, message: "Producción ríe, el chat ríe, las redes también. Tu niño interior esta feliz" },
+          failure: { followers: -3000, reputation: 0, message: "Al 3er chiste de suegras las visitas caen. El humor evolucionó, vos no." } },
         { text: "Entrevista íntima", detail: "Querés escuchar a las personas y no a los personajes", successChance: 0.50,
-          success: { followers: 5000, money: 0, message: "Los invitados se abren con vos y cuentan secretos del programa. En las redes te felicitan por tus preguntas." },
-          failure: { followers: -4000, money: 0, message: "La gente te putea porque querían escuchar los chistes de Yuyo y Escorpión." } },
+          success: { followers: 5000, reputation: 0, message: "Los invitados se abren con vos y cuentan secretos del programa. En las redes te felicitan por tus preguntas." },
+          failure: { followers: -4000, reputation: 0, message: "La gente te putea porque querían escuchar los chistes de Yuyo y Escorpión." } },
       ],
     },
     {
@@ -822,11 +822,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Granate se roba una figura de Ruzu y te conduzcas un programa con ella para justificar el sueldo. Vos no te la bancás.",
       options: [
         { text: "Aceptás", detail: "El jefe es el jefe", successChance: 0.50,
-          success: { followers: 4000, money: 0, message: "Contra todo prejuicio tenés una gran química con ella. El programa la rompe." },
-          failure: { followers: -2000, money: 0, message: "No te sigue los chistes y la falta de química se nota. El programa dura menos de 1 mes." } },
+          success: { followers: 4000, reputation: 0, message: "Contra todo prejuicio tenés una gran química con ella. El programa la rompe." },
+          failure: { followers: -2000, reputation: 0, message: "No te sigue los chistes y la falta de química se nota. El programa dura menos de 1 mes." } },
         { text: "Respetuosamente te negás", detail: "La honestidad es tu estandarte", successChance: 0.50,
-          success: { followers: 200, money: 0, message: "Migue Granate lo entiende y va rotando a la piba por varios programas. Al final se da cuenta que no sirve y la echa." },
-          failure: { followers: 0, money: 0, message: "Migue Granate te tilda de mal compañero y mala leche." } },
+          success: { followers: 200, reputation: 0, message: "Migue Granate lo entiende y va rotando a la piba por varios programas. Al final se da cuenta que no sirve y la echa." },
+          failure: { followers: 0, reputation: 0, message: "Migue Granate te tilda de mal compañero y mala leche." } },
       ],
     },
     {
@@ -834,11 +834,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Un canal rival insinúa en redes que ALGA está inflando artificialmente su audiencia. El tema domina las tendencias y todos esperan una respuesta.",
       options: [
         { text: "Responder públicamente", detail: "Vamos a defender nuestra credibilidad", successChance: 0.60,
-          success: { followers: 3000, money: 0, message: "Hablas seriamente mirando a cámara y desmentís las acusaciones con datos. El público respalda el canal" },
-          failure: { followers: -1500, money: 0, message: "La discusión escala y varios medios siguen hablando del tema." } },
+          success: { followers: 3000, reputation: 0, message: "Hablas seriamente mirando a cámara y desmentís las acusaciones con datos. El público respalda el canal" },
+          failure: { followers: -1500, reputation: 0, message: "La discusión escala y varios medios siguen hablando del tema." } },
         { text: "Ignorar la polémica", detail: "Ladran Sancho", successChance: 0.85,
-          success: { followers: 1000, money: 0, message: "La noticia muere a los pocos días." },
-          failure: { followers: -3000, money: 0, message: "Muchos interpretan el silencio como una admisión." } },
+          success: { followers: 1000, reputation: 0, message: "La noticia muere a los pocos días." },
+          failure: { followers: -3000, reputation: 0, message: "Muchos interpretan el silencio como una admisión." } },
       ],
     },
     {
@@ -846,11 +846,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "ALGA consigue una figura famosa. El formato: preguntas sin filtro, respuestas sin edición. Migue te da la silla.",
       options: [
         { text: "Ir al caos total sin ningún límite", detail: "El show sobre todo.", successChance: 0.40,
-          success: { followers: 22000, money: 7, message: "La entrevista más comentada del año. El invitado se convirtió en meme." },
-          failure: { followers: -9000, money: 0, message: "El invitado se fue al corte. ALGA tuvo que pedir disculpas públicas." } },
+          success: { followers: 22000, reputation: 7, message: "La entrevista más comentada del año. El invitado se convirtió en meme." },
+          failure: { followers: -1000, reputation: -2, message: "El invitado se fue al corte. ALGA tuvo que pedir disculpas públicas." } },
         { text: "Caos controlado: gracioso pero respetuoso", detail: "Equilibrio entre show y forma.", successChance: 0.73,
-          success: { followers: 12000, money: 4, message: "Entrevista memorable. El invitado quedó bien y vos quedaste mejor." },
-          failure: { followers: -3000, money: 0, message: "El equilibrio no se encontró. Ni caos ni entrevista real." } },
+          success: { followers: 12000, reputation: 4, message: "Entrevista memorable. El invitado quedó bien y vos quedaste mejor." },
+          failure: { followers: -1000, reputation: -1, message: "El equilibrio no se encontró. Ni caos ni entrevista real." } },
       ],
     },
     {
@@ -858,11 +858,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Un momento de Migue se viraliza masivamente y te mencionó por nombre. Las redes arden y todos te buscan.",
       options: [
         { text: "Publicar contenido propio de inmediato", detail: "Surfear la ola antes de que baje.", successChance: 0.56,
-          success: { followers: 15000, money: 4, message: "El timing fue perfecto. Tu contenido llegó cuando todos te buscaban." },
-          failure: { followers: -5000, money: 0, message: "El contenido que publicaste no estuvo a la altura del momento." } },
+          success: { followers: 15000, reputation: 4, message: "El timing fue perfecto. Tu contenido llegó cuando todos te buscaban." },
+          failure: { followers: -600, reputation: 0, message: "El contenido que publicaste no estuvo a la altura del momento." } },
         { text: "Hacer un live conjunto con Migue", detail: "Aprovechar su base directamente.", successChance: 0.67,
-          success: { followers: 11000, money: 3, message: "El live conjunto fue el cierre perfecto del momento viral." },
-          failure: { followers: -1000, money: 0, message: "La coordinación falló. El live salió tarde y el momento ya había pasado." } },
+          success: { followers: 11000, reputation: 3, message: "El live conjunto fue el cierre perfecto del momento viral." },
+          failure: { followers: -1000, reputation: 0, message: "La coordinación falló. El live salió tarde y el momento ya había pasado." } },
       ],
     },
     {
@@ -870,11 +870,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "ALGA hace una maratón de entrevistas. Te asignan el invitado más difícil de manejar de toda la grilla.",
       options: [
         { text: "Abrazar la dificultad, hacer algo diferente", detail: "El riesgo como estrategia creativa.", successChance: 0.42,
-          success: { followers: 24000, money: 8, message: "Lo imposible se volvió el segmento más comentado. Leyenda." },
-          failure: { followers: -10000, money: 0, message: "El invitado te dominó en vivo. La diferencia fue demasiado visible." } },
+          success: { followers: 24000, reputation: 8, message: "Lo imposible se volvió el segmento más comentado. Leyenda." },
+          failure: { followers: -10000, reputation: 0, message: "El invitado te dominó en vivo. La diferencia fue demasiado visible." } },
         { text: "Entrevista clásica con humor estratégico", detail: "Jugar sobre seguro con estilo.", successChance: 0.71,
-          success: { followers: 13000, money: 4, message: "Entrevista fluida y con momentos de humor que la hicieron especial." },
-          failure: { followers: -2000, money: 0, message: "El invitado difícil pudo con vos. Resultado plano." } },
+          success: { followers: 13000, reputation: 4, message: "Entrevista fluida y con momentos de humor que la hicieron especial." },
+          failure: { followers: -2000, reputation: 0, message: "El invitado difícil pudo con vos. Resultado plano." } },
       ],
     },
     {
@@ -882,11 +882,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "En el medio de un stream, Migue lanza un debate no planeado y te da la palabra sin aviso previo.",
       options: [
         { text: "Tomar el debate y llevarlo al extremo", detail: "Improvisación pura.", successChance: 0.47,
-          success: { followers: 19000, money: 5, message: "El debate explotó. Tu posición fue la más discutida de la noche." },
-          failure: { followers: -7000, money: 0, message: "No tenías argumentos listos. Quedaste sin respuestas convincentes." } },
+          success: { followers: 19000, reputation: 5, message: "El debate explotó. Tu posición fue la más discutida de la noche." },
+          failure: { followers: -7000, reputation: 0, message: "No tenías argumentos listos. Quedaste sin respuestas convincentes." } },
         { text: "Aportar desde un lugar más tranquilo", detail: "No todo tiene que ser extremo.", successChance: 0.68,
-          success: { followers: 8000, money: 2, message: "La calma contrastó bien con el caos. Tu voz se diferenció." },
-          failure: { followers: -1000, money: 0, message: "Quedaste opacado entre las voces más fuertes del panel." } },
+          success: { followers: 8000, reputation: 2, message: "La calma contrastó bien con el caos. Tu voz se diferenció." },
+          failure: { followers: -1000, reputation: 0, message: "Quedaste opacado entre las voces más fuertes del panel." } },
       ],
     },
     {
@@ -894,11 +894,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Migue Granate consiguió una entrevista con el Capitán de la Selección en Miami, te quiere llevar como co-conductor pero temás cagarla.",
       options: [
         { text: "Aceptar", detail: "Ir a Miami y tomar el lugar de co-conductor.", successChance: 0.60,
-          success: { followers: 40000, money: 0, message: "La nota salió genial, tiraste 2 chistazos que hicieron reír al 10. Ahora el Capitán te sigue en Instagram." },
-          failure: { followers: -50000, money: 0, message: "Tiraste un chiste de Twitter y lo llamaste 'Hormonita'. Granate te fulmina con la mirada, volviste solo a Buenos Aires.", specialOutcome: "forcedTransfer" } },
+          success: { followers: 40000, reputation: 0, message: "La nota salió genial, tiraste 2 chistazos que hicieron reír al 10. Ahora el Capitán te sigue en Instagram." },
+          failure: { followers: -50000, reputation: 0, message: "Tiraste un chiste de Twitter y lo llamaste 'Hormonita'. Granate te fulmina con la mirada, volviste solo a Buenos Aires.", specialOutcome: "forcedTransfer" } },
         { text: "Quedarte en estudios", detail: "No salir del estudio y seguir el evento desde ahí.", successChance: 1.00,
-          success: { followers: 5000, money: 0, message: "Te quedaste en el estudio reaccionando a la nota. Migue Granate te trae una camiseta firmada por el 10." },
-          failure: { followers: 0, money: 0, message: "" } },
+          success: { followers: 5000, reputation: 0, message: "Te quedaste en el estudio reaccionando a la nota. Migue Granate te trae una camiseta firmada por el 10." },
+          failure: { followers: 0, reputation: 0, message: "" } },
       ],
     },
     {
@@ -906,11 +906,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "ALGA organiza un homenaje especial a Pito Faez en el teatro. En pleno show, Migue Granate te pasa el micrófono y te ofrece cantar un tema del artista en vivo.",
       options: [
         { text: "Cantás, total esto es ALGA.", detail: "Tomar el micrófono y cantar en vivo.", successChance: 0.60,
-          success: { followers: 10000, money: 0, message: "Cantaste afinadamente 'Libélula Multicolor' y la rompiste. El teatro te aplaude." },
-          failure: { followers: -5000, money: 0, message: "No embocaste una nota, nadie supo cómo remar el mal momento. Te hacés viral... para mal." } },
+          success: { followers: 10000, reputation: 0, message: "Cantaste afinadamente 'Libélula Multicolor' y la rompiste. El teatro te aplaude." },
+          failure: { followers: -5000, reputation: 0, message: "No embocaste una nota, nadie supo cómo remar el mal momento. Te hacés viral... para mal." } },
         { text: "No es lo tuyo.", detail: "Rechazar la invitación a cantar.", successChance: 0.60,
-          success: { followers: 0, money: 0, message: "El homenaje fue épico igual. Tu negativa fue honesta y te ganaste el respeto del canal." },
-          failure: { followers: 0, money: 0, message: "Para cerrar el show, todos los del canal suben a cantar mientras vos lo mirás desde abajo. Al otro día no charlan de otra cosa, te sentís dejado de lado." } },
+          success: { followers: 0, reputation: 0, message: "El homenaje fue épico igual. Tu negativa fue honesta y te ganaste el respeto del canal." },
+          failure: { followers: 0, reputation: 0, message: "Para cerrar el show, todos los del canal suben a cantar mientras vos lo mirás desde abajo. Al otro día no charlan de otra cosa, te sentís dejado de lado." } },
       ],
     },
   ],
@@ -921,11 +921,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "ASS cubre el partido más importante del año. Fabio Assado te ofrece un lugar en la transmisión principal.",
       options: [
         { text: "Análisis técnico en tiempo real", detail: "Datos, contexto, profundidad.", successChance: 0.62,
-          success: { followers: 10000, money: 3, message: "Precisión quirúrgica. Los hinchas te aceptaron como voz autorizada." },
-          failure: { followers: -2000, money: 1, message: "Errores en los análisis durante momentos clave. Las críticas dolieron." } },
+          success: { followers: 10000, reputation: 3, message: "Precisión quirúrgica. Los hinchas te aceptaron como voz autorizada." },
+          failure: { followers: -2000, reputation: 1, message: "Errores en los análisis durante momentos clave. Las críticas dolieron." } },
         { text: "Panel de debate post-partido", detail: "El fútbol como disparador.", successChance: 0.55,
-          success: { followers: 12000, money: 3, message: "Debate encendido. Los clips circularon toda la noche en redes." },
-          failure: { followers: -3000, money: 0, message: "El debate se descontroló. ASS quedó expuesto negativamente." } },
+          success: { followers: 12000, reputation: 3, message: "Debate encendido. Los clips circularon toda la noche en redes." },
+          failure: { followers: -3000, reputation: 0, message: "El debate se descontroló. ASS quedó expuesto negativamente." } },
       ],
     },
     {
@@ -933,11 +933,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "ASS tiene acceso a una de las grandes figuras del fútbol argentino. Fabio Assado te confía la entrevista.",
       options: [
         { text: "Las preguntas que nadie se anima", detail: "Periodismo que incomoda.", successChance: 0.38,
-          success: { followers: 23000, money: 7, message: "Preguntaste lo que todos querían saber. Entrevista histórica del canal." },
-          failure: { followers: -5000, money: 0, message: "El jugador se cerró en banda. Un desastre en vivo frente a todos." } },
+          success: { followers: 23000, reputation: 7, message: "Preguntaste lo que todos querían saber. Entrevista histórica del canal." },
+          failure: { followers: -5000, reputation: 0, message: "El jugador se cerró en banda. Un desastre en vivo frente a todos." } },
         { text: "Entrevista cálida y sin presión", detail: "Que el entrevistado se abra solo.", successChance: 0.74,
-          success: { followers: 11000, money: 3, message: "El jugador se abrió y dijo cosas que nunca había dicho. Oro puro." },
-          failure: { followers: 1000, money: 1, message: "Correcta pero previsible. Sin momentos propios que la distingan." } },
+          success: { followers: 11000, reputation: 3, message: "El jugador se abrió y dijo cosas que nunca había dicho. Oro puro." },
+          failure: { followers: 1000, reputation: 1, message: "Correcta pero previsible. Sin momentos propios que la distingan." } },
       ],
     },
     {
@@ -945,11 +945,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Una transferencia importante sacude al fútbol argentino. ASS quiere voces fuertes y sin filtro.",
       options: [
         { text: "Opinión contundente y sin filtros", detail: "Decir lo que se piensa.", successChance: 0.44,
-          success: { followers: 17000, money: 4, message: "Análisis valiente y fundamentado. Trending topic de la noche." },
-          failure: { followers: -9000, money: 0, message: "Opinión que cayó fatal entre los hinchas más numerosos. Crisis." } },
+          success: { followers: 17000, reputation: 4, message: "Análisis valiente y fundamentado. Trending topic de la noche." },
+          failure: { followers: -9000, reputation: 0, message: "Opinión que cayó fatal entre los hinchas más numerosos. Crisis." } },
         { text: "Presentar todos los ángulos", detail: "Ecuanimidad como ventaja.", successChance: 0.72,
-          success: { followers: 6000, money: 2, message: "Análisis serio y equilibrado. ASS valoró el profesionalismo." },
-          failure: { followers: -1000, money: 1, message: "Te vieron sin posición propia. Nadie quedó conforme." } },
+          success: { followers: 6000, reputation: 2, message: "Análisis serio y equilibrado. ASS valoró el profesionalismo." },
+          failure: { followers: -1000, reputation: 1, message: "Te vieron sin posición propia. Nadie quedó conforme." } },
       ],
     },
     {
@@ -957,11 +957,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Fabio Assado propone un ciclo semanal y te quiere como panelista fijo. Es un compromiso largo.",
       options: [
         { text: "Ser el conductor, no el panelista", detail: "Tomar las riendas completamente.", successChance: 0.55,
-          success: { followers: 14000, money: 6, message: "El ciclo se convirtió en referencia del debate futbolístico argentino." },
-          failure: { followers: -4000, money: 1, message: "El formato no cuajó. Los números no convencieron a Fabio ni al canal." } },
+          success: { followers: 14000, reputation: 6, message: "El ciclo se convirtió en referencia del debate futbolístico argentino." },
+          failure: { followers: -4000, reputation: 1, message: "El formato no cuajó. Los números no convencieron a Fabio ni al canal." } },
         { text: "Aceptar el rol de panelista destacado", detail: "Menos exposición, menos riesgo.", successChance: 0.74,
-          success: { followers: 5000, money: 3, message: "Tus intervenciones fueron siempre las más citadas del programa." },
-          failure: { followers: -1000, money: 2, message: "Buen panelista, pero sin momentos propios que te distingan del resto." } },
+          success: { followers: 5000, reputation: 3, message: "Tus intervenciones fueron siempre las más citadas del programa." },
+          failure: { followers: -1000, reputation: 2, message: "Buen panelista, pero sin momentos propios que te distingan del resto." } },
       ],
     },
     {
@@ -969,11 +969,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "ASS tiene los derechos. El torneo dura semanas y Fabio Assado quiere que seas la cara de la cobertura.",
       options: [
         { text: "Cobertura total, partido a partido", detail: "La voz del torneo completo.", successChance: 0.55,
-          success: { followers: 14000, money: 5, message: "Fuiste la voz del torneo. Completo, apasionado, omnipresente." },
-          failure: { followers: -2000, money: 2, message: "El desgaste se notó. Los últimos partidos fueron de baja calidad." } },
+          success: { followers: 14000, reputation: 5, message: "Fuiste la voz del torneo. Completo, apasionado, omnipresente." },
+          failure: { followers: -2000, reputation: 2, message: "El desgaste se notó. Los últimos partidos fueron de baja calidad." } },
         { text: "Solo los partidos de mayor impacto", detail: "Calidad sobre presencia.", successChance: 0.68,
-          success: { followers: 7000, money: 3, message: "Cobertura selectiva de alta calidad. El canal quedó más que conforme." },
-          failure: { followers: -1000, money: 2, message: "Algunos fans sintieron que no estuviste cuando más se te necesitaba." } },
+          success: { followers: 7000, reputation: 3, message: "Cobertura selectiva de alta calidad. El canal quedó más que conforme." },
+          failure: { followers: -1000, reputation: 2, message: "Algunos fans sintieron que no estuviste cuando más se te necesitaba." } },
       ],
     },
   ],
@@ -984,11 +984,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "RUZU hace su segmento estrella: comentar primeras citas reales en tiempo real. Nico Bognato te pone al frente.",
       options: [
         { text: "Ser el más irreverente del panel", detail: "Sin autocensura, todo vale.", successChance: 0.52,
-          success: { followers: 12000, money: 3, message: "Tus comentarios fueron los más citados. El segmento explotó por vos." },
-          failure: { followers: -6000, money: 0, message: "Pasaste el límite. Las personas en pantalla se ofendieron en vivo." } },
+          success: { followers: 12000, reputation: 3, message: "Tus comentarios fueron los más citados. El segmento explotó por vos." },
+          failure: { followers: -6000, reputation: 0, message: "Pasaste el límite. Las personas en pantalla se ofendieron en vivo." } },
         { text: "El que da los consejos inesperadamente buenos", detail: "Contraste inesperado.", successChance: 0.70,
-          success: { followers: 7000, money: 2, message: "El contraste entre el caos y tus consejos fue el momento del programa." },
-          failure: { followers: -1000, money: 0, message: "Los consejos serios no pegaron en un formato tan caótico." } },
+          success: { followers: 7000, reputation: 2, message: "El contraste entre el caos y tus consejos fue el momento del programa." },
+          failure: { followers: -1000, reputation: 0, message: "Los consejos serios no pegaron en un formato tan caótico." } },
       ],
     },
     {
@@ -996,11 +996,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Nico Bognato lanza el desafío más famoso de RUZU: el chiste más arriesgado posible. Millones esperando.",
       options: [
         { text: "Ir sin límites, sin autocensura", detail: "Todo o nada.", successChance: 0.40,
-          success: { followers: 17000, money: 4, message: "El chiste se convirtió en leyenda del canal. Nico te aplaudió de pie." },
-          failure: { followers: -10000, money: 0, message: "Cruzaste una línea que no se debía cruzar. Crisis mediática." } },
+          success: { followers: 17000, reputation: 4, message: "El chiste se convirtió en leyenda del canal. Nico te aplaudió de pie." },
+          failure: { followers: -10000, reputation: 0, message: "Cruzaste una línea que no se debía cruzar. Crisis mediática." } },
         { text: "Arriesgado pero con criterio propio", detail: "Límite elegido, no impuesto.", successChance: 0.66,
-          success: { followers: 9000, money: 3, message: "El chiste funcionó y quedaste bien parado. Raro y difícil lograrlo en RUZU." },
-          failure: { followers: -3000, money: 0, message: "Nico consideró que faltó valentía. La audiencia de RUZU lo notó." } },
+          success: { followers: 9000, reputation: 3, message: "El chiste funcionó y quedaste bien parado. Raro y difícil lograrlo en RUZU." },
+          failure: { followers: -3000, reputation: 0, message: "Nico consideró que faltó valentía. La audiencia de RUZU lo notó." } },
       ],
     },
     {
@@ -1008,11 +1008,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Un tema serio del día, pero RUZU lo quiere con su filtro único: caótico, directo y sin protocolo.",
       options: [
         { text: "Sumarte al caos sin pensar demasiado", detail: "Fluir con el formato.", successChance: 0.56,
-          success: { followers: 11000, money: 2, message: "Fue lo que RUZU necesitaba. Natural, caótico y muy visto." },
-          failure: { followers: -4000, money: 0, message: "Sin control ni estructura, el segmento fue un quilombo sin gracia." } },
+          success: { followers: 11000, reputation: 2, message: "Fue lo que RUZU necesitaba. Natural, caótico y muy visto." },
+          failure: { followers: -4000, reputation: 0, message: "Sin control ni estructura, el segmento fue un quilombo sin gracia." } },
         { text: "Aportar algo de análisis entre las risas", detail: "Contenido entre el ruido.", successChance: 0.67,
-          success: { followers: 7000, money: 3, message: "El contraste te diferenció. Te vieron como una voz distinta en RUZU." },
-          failure: { followers: -1000, money: 0, message: "El análisis serio mató el ritmo del segmento. No encajó." } },
+          success: { followers: 7000, reputation: 3, message: "El contraste te diferenció. Te vieron como una voz distinta en RUZU." },
+          failure: { followers: -1000, reputation: 0, message: "El análisis serio mató el ritmo del segmento. No encajó." } },
       ],
     },
     {
@@ -1020,11 +1020,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Nico propone un stream de dos horas solo con vos. El formato explícito: sin temas prohibidos.",
       options: [
         { text: "Aceptar sin condiciones", detail: "Total apertura al formato.", successChance: 0.50,
-          success: { followers: 15000, money: 4, message: "Dos horas de contenido que el canal jamás olvidará. Histórico para RUZU." },
-          failure: { followers: -7000, money: 0, message: "El stream se fue a un lugar del que ninguno pudo salir bien parado." } },
+          success: { followers: 15000, reputation: 4, message: "Dos horas de contenido que el canal jamás olvidará. Histórico para RUZU." },
+          failure: { followers: -7000, reputation: 0, message: "El stream se fue a un lugar del que ninguno pudo salir bien parado." } },
         { text: "Establecer un límite claro antes", detail: "Tus reglas en el juego de Nico.", successChance: 0.63,
-          success: { followers: 8000, money: 2, message: "La tensión entre tus límites y el estilo de Nico fue el mejor contenido." },
-          failure: { followers: -2000, money: 0, message: "Nico se aburrió rápido. El límite le quitó la gracia al formato." } },
+          success: { followers: 8000, reputation: 2, message: "La tensión entre tus límites y el estilo de Nico fue el mejor contenido." },
+          failure: { followers: -2000, reputation: 0, message: "Nico se aburrió rápido. El límite le quitó la gracia al formato." } },
       ],
     },
     {
@@ -1032,11 +1032,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Empieza como un debate sobre comida o música y termina tocando un nervio real. Nico te da la palabra.",
       options: [
         { text: "Llevarlo al nivel serio sin avergonzarte", detail: "El fondo emerge naturalmente.", successChance: 0.57,
-          success: { followers: 10000, money: 3, message: "El viraje fue el mejor momento del programa. Nadie lo vio venir." },
-          failure: { followers: -3000, money: 0, message: "El tono serio mató el humor y el nuevo tema tampoco cuajó." } },
+          success: { followers: 10000, reputation: 3, message: "El viraje fue el mejor momento del programa. Nadie lo vio venir." },
+          failure: { followers: -3000, reputation: 0, message: "El tono serio mató el humor y el nuevo tema tampoco cuajó." } },
         { text: "Mantenerlo liviano y bajar la tensión", detail: "Humor como herramienta.", successChance: 0.71,
-          success: { followers: 6000, money: 2, message: "Salvaste el momento. El segmento terminó bien y todos quedaron cómodos." },
-          failure: { followers: 0, money: 0, message: "Ni un lado ni el otro. El programa terminó sin pena ni gloria." } },
+          success: { followers: 6000, reputation: 2, message: "Salvaste el momento. El segmento terminó bien y todos quedaron cómodos." },
+          failure: { followers: 0, reputation: 0, message: "Ni un lado ni el otro. El programa terminó sin pena ni gloria." } },
       ],
     },
   ],
@@ -1055,11 +1055,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "RENDER consiguió al político más debatido del momento. Tomás Report te confía la entrevista.",
       options: [
         { text: "Las preguntas que nadie se anima a hacer", detail: "Periodismo sin concesiones.", successChance: 0.40,
-          success: { followers: 21000, money: 6, message: "Preguntaste lo que todo el país quería escuchar. Clip millonario." },
-          failure: { followers: -8000, money: 0, message: "El político se enojó y cortó la entrevista. Escándalo para RENDER." } },
+          success: { followers: 21000, reputation: 6, message: "Preguntaste lo que todo el país quería escuchar. Clip millonario." },
+          failure: { followers: -8000, reputation: 0, message: "El político se enojó y cortó la entrevista. Escándalo para RENDER." } },
         { text: "Entrevista equilibrada y periodísticamente sólida", detail: "Forma sobre show.", successChance: 0.74,
-          success: { followers: 11000, money: 4, message: "Entrevista rigurosa. Ganaste credibilidad en el ambiente político." },
-          failure: { followers: -2000, money: 0, message: "El político manejó la entrevista a su favor. Quedaste por debajo." } },
+          success: { followers: 11000, reputation: 4, message: "Entrevista rigurosa. Ganaste credibilidad en el ambiente político." },
+          failure: { followers: -2000, reputation: 0, message: "El político manejó la entrevista a su favor. Quedaste por debajo." } },
       ],
     },
     {
@@ -1067,11 +1067,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Hay una noticia urgente. Tomás Report te manda al aire en diez minutos. Sin tiempo de preparar nada.",
       options: [
         { text: "Improvisar con lo que sabés", detail: "Confiar en el conocimiento acumulado.", successChance: 0.50,
-          success: { followers: 13000, money: 3, message: "La improvisación fue sólida. Te reconocieron como alguien que sabe." },
-          failure: { followers: -5000, money: 0, message: "Los errores factuales en vivo destruyeron la credibilidad del segmento." } },
+          success: { followers: 13000, reputation: 3, message: "La improvisación fue sólida. Te reconocieron como alguien que sabe." },
+          failure: { followers: -5000, reputation: 0, message: "Los errores factuales en vivo destruyeron la credibilidad del segmento." } },
         { text: "Pedir diez minutos para informarte bien", detail: "La preparación como responsabilidad.", successChance: 0.67,
-          success: { followers: 8000, money: 3, message: "La espera valió la pena. El análisis fue de los mejores del canal." },
-          failure: { followers: -2000, money: 0, message: "Para cuando saliste, la noticia ya la habían cubierto todos los demás." } },
+          success: { followers: 8000, reputation: 3, message: "La espera valió la pena. El análisis fue de los mejores del canal." },
+          failure: { followers: -2000, reputation: 0, message: "Para cuando saliste, la noticia ya la habían cubierto todos los demás." } },
       ],
     },
     {
@@ -1079,11 +1079,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Tomás Report te propone llevar una investigación propia al aire. El tema es sensible y el impacto puede ser enorme.",
       options: [
         { text: "Publicar ahora, el tiempo es clave", detail: "El primero en llegar gana.", successChance: 0.38,
-          success: { followers: 26000, money: 8, message: "La investigación fue el tema del año. RENDER es la fuente de todos." },
-          failure: { followers: -12000, money: 0, message: "Datos sin verificar. La desmentida fue peor que la nota original." } },
+          success: { followers: 26000, reputation: 8, message: "La investigación fue el tema del año. RENDER es la fuente de todos." },
+          failure: { followers: -12000, reputation: 0, message: "Datos sin verificar. La desmentida fue peor que la nota original." } },
         { text: "Verificar cada dato antes de salir", detail: "La credibilidad se construye despacio.", successChance: 0.76,
-          success: { followers: 15000, money: 5, message: "Investigación impecable. Nadie pudo impugnar un solo dato." },
-          failure: { followers: -1000, money: 0, message: "La verificación tardó demasiado. Otro medio publicó primero." } },
+          success: { followers: 15000, reputation: 5, message: "Investigación impecable. Nadie pudo impugnar un solo dato." },
+          failure: { followers: -1000, reputation: 0, message: "La verificación tardó demasiado. Otro medio publicó primero." } },
       ],
     },
     {
@@ -1091,11 +1091,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Estalla una crisis de gobierno. RENDER entra en modo 24/7 y te proponen como cara visible de la cobertura.",
       options: [
         { text: "Estar al aire las 24 horas", detail: "El canal antes que todo.", successChance: 0.47,
-          success: { followers: 19000, money: 6, message: "Fuiste la referencia de la crisis. El país entero miraba RENDER y a vos." },
-          failure: { followers: -4000, money: 0, message: "El agotamiento se vio. En hora 18 ya no había análisis, solo errores." } },
+          success: { followers: 19000, reputation: 6, message: "Fuiste la referencia de la crisis. El país entero miraba RENDER y a vos." },
+          failure: { followers: -4000, reputation: 0, message: "El agotamiento se vio. En hora 18 ya no había análisis, solo errores." } },
         { text: "Coberturas de 4 horas con análisis profundo", detail: "Sostenible y de calidad.", successChance: 0.69,
-          success: { followers: 12000, money: 4, message: "Cobertura de alta calidad. Te diferenciaste del ruido de los demás medios." },
-          failure: { followers: -1000, money: 0, message: "La audiencia quería continuidad. Tus ausencias entre bloques los alejaron." } },
+          success: { followers: 12000, reputation: 4, message: "Cobertura de alta calidad. Te diferenciaste del ruido de los demás medios." },
+          failure: { followers: -1000, reputation: 0, message: "La audiencia quería continuidad. Tus ausencias entre bloques los alejaron." } },
       ],
     },
     {
@@ -1103,11 +1103,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "En plena transmisión, Quique Quinoa se entera de que va a ser despedido. Explota en el aire: insulta al canal, a los dueños, a todos. Las redes arden. Vos estás ahí al lado.",
       options: [
         { text: "No decís nada, dejas que pase.", detail: "No intervenir y dejar que el descontrol ocurra.", successChance: 0.60,
-          success: { followers: 1000, money: 0, message: "Echan al conductor y no a vos. RENDER te ve como alguien que sabe mantener la calma." },
-          failure: { followers: -1000, money: 0, message: "Te tildan de tibio en las redes." } },
+          success: { followers: 1000, reputation: 0, message: "Echan al conductor y no a vos. RENDER te ve como alguien que sabe mantener la calma." },
+          failure: { followers: -1000, reputation: 0, message: "Te tildan de tibio en las redes." } },
         { text: "Metés chistes para aliviar la tensión.", detail: "Intentar distender la situación con humor.", successChance: 0.50,
-          success: { followers: 0, money: 0, message: "Quique se relaja y termina el programa. El dueño a la salida te felicita por cómo manejaste todo." },
-          failure: { followers: 0, money: -3, message: "Quique es echado y a vos te bajan el sueldo. 'A ver si con esto se te va lo payaso' dice el dueño." } },
+          success: { followers: 0, reputation: 0, message: "Quique se relaja y termina el programa. El dueño a la salida te felicita por cómo manejaste todo." },
+          failure: { followers: 0, reputation: -3, message: "Quique es echado y a vos te bajan el sueldo. 'A ver si con esto se te va lo payaso' dice el dueño." } },
       ],
     },
     {
@@ -1115,11 +1115,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Durante el programa en vivo te enterás que el canal mandará a Mosquita Fart para la cobertura del Mundial. A la piba le tirás una pelota y le saca los gajos.",
       options: [
         { text: "Miras a cámara con cara de 'Daaaale'.", detail: "Responder al momento con una cara de complicidad.", successChance: 0.60,
-          success: { followers: 1000, money: 2, message: "Todos lo leyeron como un chiste. Tu cara se viralizó y el canal, en lugar de enojarse, te subió el sueldo para calmarte." },
-          failure: { followers: 6000, money: 0, message: "Tenés menos tiempo en pantalla pero la gente te ama." } },
+          success: { followers: 1000, reputation: 2, message: "Todos lo leyeron como un chiste. Tu cara se viralizó y el canal, en lugar de enojarse, te subió el sueldo para calmarte." },
+          failure: { followers: 6000, reputation: 0, message: "Tenés menos tiempo en pantalla pero la gente te ama." } },
         { text: "Te quejas por redes.", detail: "Expresar el enojo públicamente.", successChance: 0.50,
-          success: { followers: 0, money: 0, message: "Los fans te aman y tu posteo se hace viral pero los dueños te tienen entre ceja y ceja. El ambiente interno se pone tenso." },
-          failure: { followers: 0, money: 0, message: "Los dueños no perdonan la queja pública. Te llaman y te dicen que tu contrato no se renueva. Salís a buscar canal.", specialOutcome: "forcedTransfer" } },
+          success: { followers: 0, reputation: 0, message: "Los fans te aman y tu posteo se hace viral pero los dueños te tienen entre ceja y ceja. El ambiente interno se pone tenso." },
+          failure: { followers: 0, reputation: 0, message: "Los dueños no perdonan la queja pública. Te llaman y te dicen que tu contrato no se renueva. Salís a buscar canal.", specialOutcome: "forcedTransfer" } },
       ],
     },
     {
@@ -1128,11 +1128,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "A mitad de temporada, RENDER anuncia que fue adquirido por un nuevo grupo mediático. Todos los contratos del staff quedan rescindidos de inmediato. No hay apelación posible.",
       options: [
         { text: "Intentar quedarte en el canal reformado", detail: "Quizás el nuevo dueño te renueve.", successChance: 0.05,
-          success: { followers: 3000, money: 0, message: "El nuevo dueño decidió renovarte por una sola temporada más... rarísimo.", specialOutcome: "forcedTransfer" },
-          failure: { followers: -5000, money: 0, message: "El nuevo dueño no renovó ningún contrato. Te quedás sin trabajo de un día para el otro.", specialOutcome: "forcedTransfer" } },
+          success: { followers: 3000, reputation: 0, message: "El nuevo dueño decidió renovarte por una sola temporada más... rarísimo.", specialOutcome: "forcedTransfer" },
+          failure: { followers: -5000, reputation: 0, message: "El nuevo dueño no renovó ningún contrato. Te quedás sin trabajo de un día para el otro.", specialOutcome: "forcedTransfer" } },
         { text: "Agarrar las cosas y salir antes de que te echen", detail: "Salir con dignidad.", successChance: 0.95,
-          success: { followers: 1000, money: 3, message: "Saliste con dignidad. En el ambiente todos saben lo que pasó y te respetan por eso.", specialOutcome: "forcedTransfer" },
-          failure: { followers: -2000, money: 0, message: "La salida se hizo pública de mala manera. Igual te fuiste, pero sin la mejor imagen.", specialOutcome: "forcedTransfer" } },
+          success: { followers: 1000, reputation: 3, message: "Saliste con dignidad. En el ambiente todos saben lo que pasó y te respetan por eso.", specialOutcome: "forcedTransfer" },
+          failure: { followers: -2000, reputation: 0, message: "La salida se hizo pública de mala manera. Igual te fuiste, pero sin la mejor imagen.", specialOutcome: "forcedTransfer" } },
       ],
     },
   ],
@@ -1143,11 +1143,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "El Gordo Pan quiere que defiendas la posición del gobierno en vivo durante el horario de mayor audiencia. Sin matices.",
       options: [
         { text: "Defender al 100%, sin fisuras", detail: "La línea del canal, completa.", successChance: 0.67,
-          success: { followers: 9000, money: 5, message: "El Gordo Pan te felicitó en vivo. El canal quedó muy satisfecho." },
-          failure: { followers: -5000, money: 0, message: "Hubo un momento donde no tenías respuesta. El canal lo notó." } },
+          success: { followers: 9000, reputation: 5, message: "El Gordo Pan te felicitó en vivo. El canal quedó muy satisfecho." },
+          failure: { followers: -5000, reputation: 0, message: "Hubo un momento donde no tenías respuesta. El canal lo notó." } },
         { text: "Matizar el mensaje sutilmente", detail: "Un gramo de honestidad propia.", successChance: 0.38,
-          success: { followers: 16000, money: 3, message: "El matiz generó debate y paradójicamente aumentó la audiencia." },
-          failure: { followers: -8000, money: 0, message: "CARANCHO no tolera matices. El Gordo Pan lo tomó como una traición." } },
+          success: { followers: 16000, reputation: 3, message: "El matiz generó debate y paradójicamente aumentó la audiencia." },
+          failure: { followers: -8000, reputation: 0, message: "CARANCHO no tolera matices. El Gordo Pan lo tomó como una traición." } },
       ],
     },
     {
@@ -1155,11 +1155,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "El Gordo Pan consiguió un ministro. El formato es claro: preguntas amigables, ninguna incomodidad.",
       options: [
         { text: "Seguir el guión del canal al pie de la letra", detail: "La entrevista que el canal quiere.", successChance: 0.72,
-          success: { followers: 7000, money: 5, message: "El funcionario quedó contento. El canal también. El trabajo, hecho." },
-          failure: { followers: -3000, money: 0, message: "Incluso siguiendo el guión, algo salió mal. El funcionario se molestó." } },
+          success: { followers: 7000, reputation: 5, message: "El funcionario quedó contento. El canal también. El trabajo, hecho." },
+          failure: { followers: -3000, reputation: 0, message: "Incluso siguiendo el guión, algo salió mal. El funcionario se molestó." } },
         { text: "Lanzar una pregunta incómoda de rebote", detail: "Un momento de periodismo real.", successChance: 0.33,
-          success: { followers: 19000, money: 6, message: "La pregunta incómoda se viralizó. Inesperadamente, incluso CARANCHO la celebró." },
-          failure: { followers: -10000, money: 0, message: "El Gordo Pan cortó tu micrófono en vivo. Crisis interna sin precedentes." } },
+          success: { followers: 19000, reputation: 6, message: "La pregunta incómoda se viralizó. Inesperadamente, incluso CARANCHO la celebró." },
+          failure: { followers: -10000, reputation: 0, message: "El Gordo Pan cortó tu micrófono en vivo. Crisis interna sin precedentes." } },
       ],
     },
     {
@@ -1167,11 +1167,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "CARANCHO organiza un evento político masivo. El Gordo Pan quiere que seas el streamer estrella de la cobertura.",
       options: [
         { text: "Cobertura con entusiasmo total", detail: "Comprometerte con el evento.", successChance: 0.63,
-          success: { followers: 11000, money: 5, message: "Tu energía contagió. El evento fue un éxito y vos fuiste parte de eso." },
-          failure: { followers: -2000, money: 0, message: "El evento tuvo problemas técnicos. Tu cobertura los amplificó." } },
+          success: { followers: 11000, reputation: 5, message: "Tu energía contagió. El evento fue un éxito y vos fuiste parte de eso." },
+          failure: { followers: -2000, reputation: 0, message: "El evento tuvo problemas técnicos. Tu cobertura los amplificó." } },
         { text: "Cobertura neutral, sin tomar partido", detail: "El periodismo por sobre la política.", successChance: 0.42,
-          success: { followers: 7000, money: 2, message: "La neutralidad en CARANCHO fue vista como valentía. Inusual y efectiva." },
-          failure: { followers: -9000, money: 0, message: "CARANCHO no contrató a alguien neutral. Te dejaron fuera del evento principal." } },
+          success: { followers: 7000, reputation: 2, message: "La neutralidad en CARANCHO fue vista como valentía. Inusual y efectiva." },
+          failure: { followers: -9000, reputation: 0, message: "CARANCHO no contrató a alguien neutral. Te dejaron fuera del evento principal." } },
       ],
     },
     {
@@ -1179,11 +1179,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "La dirección del canal te manda un mensaje claro: tenés que ir contra un canal rival en vivo.",
       options: [
         { text: "Hacerlo: seguir la línea del canal", detail: "Prioridad al contrato.", successChance: 0.57,
-          success: { followers: 9000, money: 4, message: "El ataque fue efectivo según los estándares de CARANCHO. El canal quedó conforme." },
-          failure: { followers: -5000, money: 0, message: "El canal rival te sacó a pasear. Humillado totalmente." } },
+          success: { followers: 9000, reputation: 4, message: "El ataque fue efectivo según los estándares de CARANCHO. El canal quedó conforme." },
+          failure: { followers: -5000, reputation: 0, message: "El canal rival te sacó a pasear. Humillado totalmente." } },
         { text: "Negarte a atacar sin razón", detail: "Tu integridad primero.", successChance: 0.48,
-          success: { followers: 13000, money: 3, message: "La negativa se viralizó. Paradójicamente, ganaste seguidores fuera de CARANCHO." },
-          failure: { followers: -10000, money: 0, message: "CARANCHO no negocia la línea editorial. Tu posición dentro del canal peligra." } },
+          success: { followers: 13000, reputation: 3, message: "La negativa se viralizó. Paradójicamente, ganaste seguidores fuera de CARANCHO." },
+          failure: { followers: -10000, reputation: 0, message: "CARANCHO no negocia la línea editorial. Tu posición dentro del canal peligra." } },
       ],
     },
     {
@@ -1191,11 +1191,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Sale a la luz (de nuevo) que CARANCHO y RENDER tienen el mismo propietario. El escándalo mediático es monumental y te piden que lo manejés.",
       options: [
         { text: "Defender la situación en nombre del canal", detail: "El canal te pide que salgas a aclarar.", successChance: 0.45,
-          success: { followers: 6000, money: 6, message: "Lograste bajar la temperatura. El canal te lo agradeció con un bono." },
-          failure: { followers: -12000, money: 0, message: "La defensa fue insostenible. Te convirtieron en el blanco de todas las críticas." } },
+          success: { followers: 6000, reputation: 6, message: "Lograste bajar la temperatura. El canal te lo agradeció con un bono." },
+          failure: { followers: -12000, reputation: 0, message: "La defensa fue insostenible. Te convirtieron en el blanco de todas las críticas." } },
         { text: "Salir del tema con humor y esquivar", detail: "No querer saber nada.", successChance: 0.64,
-          success: { followers: 7000, money: 2, message: "El humor desactivó el momento. El canal respiró aliviado." },
-          failure: { followers: -4000, money: -5, message: "Las redes te tildan de pelotudo. Peor el remedio que la enfermedad." } },
+          success: { followers: 7000, reputation: 2, message: "El humor desactivó el momento. El canal respiró aliviado." },
+          failure: { followers: -4000, reputation: -5, message: "Las redes te tildan de pelotudo. Peor el remedio que la enfermedad." } },
       ],
     },
   ],
@@ -1206,11 +1206,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "QUERATINA arma un panel con dirigentes, militantes y periodistas del palo. El tema: la interna del movimiento. Pepe Racinclub te pone a moderar.",
       options: [
         { text: "Moderar con mano firme sin tomar partido", detail: "Periodismo por sobre la militancia.", successChance: 0.55,
-          success: { followers: 9000, money: 3, message: "Panel intenso pero ordenado. Te ganaste el respeto de los distintos sectores del movimiento." },
-          failure: { followers: -4000, money: 0, message: "Los panelistas te pasaron por encima. Perdiste el control y el canal quedó expuesto." } },
+          success: { followers: 9000, reputation: 3, message: "Panel intenso pero ordenado. Te ganaste el respeto de los distintos sectores del movimiento." },
+          failure: { followers: -4000, reputation: 0, message: "Los panelistas te pasaron por encima. Perdiste el control y el canal quedó expuesto." } },
         { text: "Sumarte al debate y tomar posición", detail: "Bancar la línea del canal.", successChance: 0.48,
-          success: { followers: 14000, money: 4, message: "Tu posición fue clara y contundente. La militancia te adoptó. El panel fue trending." },
-          failure: { followers: -7000, money: 0, message: "La interna del movimiento te comió. Quedaste en el medio de un fuego cruzado del que no pudiste salir." } },
+          success: { followers: 14000, reputation: 4, message: "Tu posición fue clara y contundente. La militancia te adoptó. El panel fue trending." },
+          failure: { followers: -7000, reputation: 0, message: "La interna del movimiento te comió. Quedaste en el medio de un fuego cruzado del que no pudiste salir." } },
       ],
     },
     {
@@ -1218,11 +1218,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "QUERATINA consiguió a una figura histórica del peronismo. Pepe Racinclub te confía la entrevista. La audiencia del canal la espera hace semanas.",
       options: [
         { text: "Preguntas críticas, periodismo sin concesiones", detail: "La figura lo merece.", successChance: 0.42,
-          success: { followers: 19000, money: 5, message: "Preguntaste lo que nadie se animaba a preguntar. La entrevista fue histórica para el canal." },
-          failure: { followers: -8000, money: 0, message: "El referente se cerró y la entrevista murió antes de empezar. QUERATINA no te lo perdonó fácil." } },
+          success: { followers: 19000, reputation: 5, message: "Preguntaste lo que nadie se animaba a preguntar. La entrevista fue histórica para el canal." },
+          failure: { followers: -8000, reputation: 0, message: "El referente se cerró y la entrevista murió antes de empezar. QUERATINA no te lo perdonó fácil." } },
         { text: "Entrevista respetuosa y de fondo", detail: "Que el entrevistado se abra solo.", successChance: 0.72,
-          success: { followers: 11000, money: 3, message: "La figura habló como nunca. Momento emotivo que el canal usó durante semanas." },
-          failure: { followers: -2000, money: 0, message: "Correcta pero sin momentos propios. La audiencia dice que sos tibio." } },
+          success: { followers: 11000, reputation: 3, message: "La figura habló como nunca. Momento emotivo que el canal usó durante semanas." },
+          failure: { followers: -2000, reputation: 0, message: "Correcta pero sin momentos propios. La audiencia dice que sos tibio." } },
       ],
     },
     {
@@ -1230,11 +1230,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "QUERATINA cubre el festival de cine argentino más importante del año. Te mandan a vos a la alfombra roja y a las funciones.",
       options: [
         { text: "Análisis cinematográfico serio, película por película", detail: "El cine merece respeto.", successChance: 0.60,
-          success: { followers: 8000, money: 3, message: "Tu cobertura fue la más completa del festival. El ambiente cinéfilo te empezó a seguir." },
-          failure: { followers: -2000, money: 0, message: "El análisis fue demasiado técnico para la audiencia habitual del canal. Los números no acompañaron." } },
+          success: { followers: 8000, reputation: 3, message: "Tu cobertura fue la más completa del festival. El ambiente cinéfilo te empezó a seguir." },
+          failure: { followers: -2000, reputation: 0, message: "El análisis fue demasiado técnico para la audiencia habitual del canal. Los números no acompañaron." } },
         { text: "Entrevistas al paso en la alfombra roja", detail: "El espectáculo por sobre el análisis.", successChance: 0.65,
-          success: { followers: 12000, money: 4, message: "Los clips de las entrevistas circularon en todos lados. Momento espontáneo que hizo quedar bien al canal." },
-          failure: { followers: -3000, money: 0, message: "Un director conocido te cortó la entrevista en vivo porque no te sabía el nombre. Viral, pero no del bueno." } },
+          success: { followers: 12000, reputation: 4, message: "Los clips de las entrevistas circularon en todos lados. Momento espontáneo que hizo quedar bien al canal." },
+          failure: { followers: -3000, reputation: 0, message: "Un director conocido te cortó la entrevista en vivo porque no te sabía el nombre. Viral, pero no del bueno." } },
       ],
     },
     {
@@ -1242,11 +1242,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Un dirigente cercano al canal protagoniza un escándalo en plena jornada. QUERATINA quiere reacción inmediata al aire.",
       options: [
         { text: "Cubrirlo con datos y contexto, sin apasionamiento", detail: "Periodismo antes que militancia.", successChance: 0.58,
-          success: { followers: 10000, money: 3, message: "Tu cobertura fue seria y equilibrada. Te diferenciaste del ruido general." },
-          failure: { followers: -3000, money: 0, message: "El canal esperaba más compromiso con la línea editorial. Quedaste como tibio." } },
+          success: { followers: 10000, reputation: 3, message: "Tu cobertura fue seria y equilibrada. Te diferenciaste del ruido general." },
+          failure: { followers: -3000, reputation: 0, message: "El canal esperaba más compromiso con la línea editorial. Quedaste como tibio." } },
         { text: "Opinar fuerte desde la línea del canal", detail: "Bancar la posición sin dudar.", successChance: 0.46,
-          success: { followers: 16000, money: 4, message: "La posición fue contundente. La audiencia fiel de QUERATINA te aplaudió de pie." },
-          failure: { followers: -9000, money: 0, message: "El escándalo terminó siendo un fiasco y vos quedaste defendiendo lo indefendible en vivo." } },
+          success: { followers: 16000, reputation: 4, message: "La posición fue contundente. La audiencia fiel de QUERATINA te aplaudió de pie." },
+          failure: { followers: -9000, reputation: 0, message: "El escándalo terminó siendo un fiasco y vos quedaste defendiendo lo indefendible en vivo." } },
       ],
     },
     {
@@ -1254,11 +1254,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Un seguidor compuso una canción dedicada a una estrella de mar con un culo pronunciado. Sin que nadie lo planificara, el tema te involucra y te hacés viral en TikTok durante toda la semana.",
       options: [
         { text: "Te montás en el viral. Lo compartís, lo bailás, lo hacés tuyo.", detail: "Si ya sos meme, mejor serlo con dignidad.", successChance: 0.58,
-          success: { followers: 22000, money: 0, message: "El momento fue glorioso. Millones de vistas, apareciste en todos los medios y la canción sonó en un programa de TV. Pepe Racinclub no entendió nada pero festejó igual." },
-          failure: { followers: -5000, money: 0, message: "El intento de montarte en el viral quedó forzado. Las redes lo sintieron artificial y el chiste se convirtió en otro chiste, pero sobre vos." } },
+          success: { followers: 22000, reputation: 0, message: "El momento fue glorioso. Millones de vistas, apareciste en todos los medios y la canción sonó en un programa de TV. Pepe Racinclub no entendió nada pero festejó igual." },
+          failure: { followers: -5000, reputation: 0, message: "El intento de montarte en el viral quedó forzado. Las redes lo sintieron artificial y el chiste se convirtió en otro chiste, pero sobre vos." } },
         { text: "Lo ignorás. QUERATINA es un canal serio.", detail: "La imagen política primero.", successChance: 0.52,
-          success: { followers: 3000, money: 0, message: "La decisión de no comentarlo fue leída como madurez. El viral pasó solo y tu imagen dentro del canal quedó intacta." },
-          failure: { followers: -8000, money: 0, message: "Ignorarlo fue un error. Todo el mundo hablaba del tema y tu silencio hizo que parecieras molesto. Las redes te hicieron meme igual, pero sin que pudieras controlar el relato." } },
+          success: { followers: 3000, reputation: 0, message: "La decisión de no comentarlo fue leída como madurez. El viral pasó solo y tu imagen dentro del canal quedó intacta." },
+          failure: { followers: -8000, reputation: 0, message: "Ignorarlo fue un error. Todo el mundo hablaba del tema y tu silencio hizo que parecieras molesto. Las redes te hicieron meme igual, pero sin que pudieras controlar el relato." } },
       ],
     },
   ],
@@ -1269,11 +1269,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "FUTUPOP cubre el festival de cumbia más convocante del año. La conducción del stream es tuya si la querés.",
       options: [
         { text: "Conducir el evento de principio a fin", detail: "La noche entera en tus manos.", successChance: 0.57,
-          success: { followers: 13000, money: 5, message: "La noche fue increíble. El ambiente de la cumbia te adoptó como uno de los suyos." },
-          failure: { followers: -4000, money: 0, message: "El ritmo del festival era mucho para manejarlo solo. La conducción quedó desprolija." } },
+          success: { followers: 13000, reputation: 5, message: "La noche fue increíble. El ambiente de la cumbia te adoptó como uno de los suyos." },
+          failure: { followers: -4000, reputation: 0, message: "El ritmo del festival era mucho para manejarlo solo. La conducción quedó desprolija." } },
         { text: "Hacer entrevistas desde el piso", detail: "Más espontáneo y cercano.", successChance: 0.73,
-          success: { followers: 7000, money: 3, message: "Las entrevistas espontáneas fueron los mejores clips de la noche." },
-          failure: { followers: 800, money: 1, message: "El piso estaba muy caótico. Poco de lo que grabaste salió bien." } },
+          success: { followers: 7000, reputation: 3, message: "Las entrevistas espontáneas fueron los mejores clips de la noche." },
+          failure: { followers: 800, reputation: 1, message: "El piso estaba muy caótico. Poco de lo que grabaste salió bien." } },
       ],
     },
     {
@@ -1281,11 +1281,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "El canal descubrió a una artista nueva que puede ser la próxima grande de la cumbia. La entrevista te la ofrecen a vos.",
       options: [
         { text: "Entrevista profunda, emotiva, sin apuro", detail: "Dejar que la historia se cuente sola.", successChance: 0.67,
-          success: { followers: 9000, money: 3, message: "La artista lloró en cámara. El clip circuló en todos lados. Momento real." },
-          failure: { followers: -2000, money: 0, message: "La artista se cerró. No lograste que se abriera en ningún momento." } },
+          success: { followers: 9000, reputation: 3, message: "La artista lloró en cámara. El clip circuló en todos lados. Momento real." },
+          failure: { followers: -2000, reputation: 0, message: "La artista se cerró. No lograste que se abriera en ningún momento." } },
         { text: "Liviano, divertido, con mucha energía", detail: "El tono del canal, respetado.", successChance: 0.71,
-          success: { followers: 6000, money: 2, message: "La artista se fue sonriendo y el canal quedó contento. Trabajo limpio." },
-          failure: { followers: -1000, money: 0, message: "El tono liviano no conectó con la artista. La entrevista no tuvo chispa." } },
+          success: { followers: 6000, reputation: 2, message: "La artista se fue sonriendo y el canal quedó contento. Trabajo limpio." },
+          failure: { followers: -1000, reputation: 0, message: "El tono liviano no conectó con la artista. La entrevista no tuvo chispa." } },
       ],
     },
     {
@@ -1293,11 +1293,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "FUTUPOP organiza un debate que nadie esperaba: ¿la cumbia merece ser tomada en serio culturalmente?",
       options: [
         { text: "Defender la cumbia con todo lo que tenés", detail: "El género como expresión legítima.", successChance: 0.62,
-          success: { followers: 11000, money: 2, message: "Tu defensa fue apasionada y argumentada. La audiencia te aplaudió de pie." },
-          failure: { followers: -3000, money: 0, message: "Los argumentos no convencieron y quedaste como alguien sin criterio." } },
+          success: { followers: 11000, reputation: 2, message: "Tu defensa fue apasionada y argumentada. La audiencia te aplaudió de pie." },
+          failure: { followers: -3000, reputation: 0, message: "Los argumentos no convencieron y quedaste como alguien sin criterio." } },
         { text: "Análisis más equilibrado con contexto histórico", detail: "El conocimiento como diferencial.", successChance: 0.57,
-          success: { followers: 7000, money: 3, message: "Sorprendiste con datos y contexto. Nadie esperaba ese nivel de análisis acá." },
-          failure: { followers: -4000, money: 0, message: "El análisis serio no pegó en un canal que vive del estilo de FUTUPOP." } },
+          success: { followers: 7000, reputation: 3, message: "Sorprendiste con datos y contexto. Nadie esperaba ese nivel de análisis acá." },
+          failure: { followers: -4000, reputation: 0, message: "El análisis serio no pegó en un canal que vive del estilo de FUTUPOP." } },
       ],
     },
     {
@@ -1305,11 +1305,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Un artista importante lanza su álbum y el canal tiene la exclusiva. Vos sos el presentador del evento.",
       options: [
         { text: "Improvisación total, al ritmo del artista", detail: "Fluir con la energía del momento.", successChance: 0.56,
-          success: { followers: 12000, money: 4, message: "La energía del evento se transmitió a través de la pantalla. Magia en vivo." },
-          failure: { followers: -5000, money: 0, message: "La improvisación generó momentos incómodos que el artista no olvidó." } },
+          success: { followers: 12000, reputation: 4, message: "La energía del evento se transmitió a través de la pantalla. Magia en vivo." },
+          failure: { followers: -5000, reputation: 0, message: "La improvisación generó momentos incómodos que el artista no olvidó." } },
         { text: "Presentación cuidada con datos y contexto", detail: "Darle peso al lanzamiento.", successChance: 0.70,
-          success: { followers: 7000, money: 3, message: "El artista quedó impresionado. El lanzamiento tuvo la seriedad que merecía." },
-          failure: { followers: -1000, money: 1, message: "Demasiado formal para el espíritu del canal. La audiencia prefería el estilo de FUTUPOP." } },
+          success: { followers: 7000, reputation: 3, message: "El artista quedó impresionado. El lanzamiento tuvo la seriedad que merecía." },
+          failure: { followers: -1000, reputation: 1, message: "Demasiado formal para el espíritu del canal. La audiencia prefería el estilo de FUTUPOP." } },
       ],
     },
     {
@@ -1317,11 +1317,11 @@ const EVENTS: Record<Channel, GameEvent[]> = {
       description: "Dos artistas del género tienen una pelea pública y explosiva. FUTUPOP te manda a cubrir el drama.",
       options: [
         { text: "Cubrir el drama sin filtros ni moderación", detail: "El estilo puro y sin vergüenza.", successChance: 0.54,
-          success: { followers: 15000, money: 3, message: "El drama fue masivo y vos estuviste en el centro de todo. Pico de audiencia." },
-          failure: { followers: -6000, money: 0, message: "Los dos artistas se enojaron con el canal. Crisis con los dos lados." } },
+          success: { followers: 15000, reputation: 3, message: "El drama fue masivo y vos estuviste en el centro de todo. Pico de audiencia." },
+          failure: { followers: -6000, reputation: 0, message: "Los dos artistas se enojaron con el canal. Crisis con los dos lados." } },
         { text: "Nota equilibrada con los dos lados de la historia", detail: "Periodismo del estilo de FUTUPOP.", successChance: 0.68,
-          success: { followers: 8000, money: 2, message: "Tu equilibrio contrastó con el caos y te diferenciaste. Inesperado en FUTUPOP." },
-          failure: { followers: -2000, money: 0, message: "La audiencia del canal quería drama puro. El equilibrio los aburrió." } },
+          success: { followers: 8000, reputation: 2, message: "Tu equilibrio contrastó con el caos y te diferenciaste. Inesperado en FUTUPOP." },
+          failure: { followers: -2000, reputation: 0, message: "La audiencia del canal quería drama puro. El equilibrio los aburrió." } },
       ],
     },
   ],
@@ -2784,18 +2784,15 @@ function ScreenGameOver({ gs }: { gs: GameState }) {
                   return (
                     <div key={`${entry.channel}-${index}`} className="flex items-center justify-between gap-3 rounded-2xl p-4"
                       style={{ background: `${info.color}0d`, border: `1px solid ${info.color}45` }}>
-                      <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
                         {info.logo ? <img src={info.logo} alt={`Logo de ${info.shortName}`} className="h-12 w-14 shrink-0 object-contain" /> : null}
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="truncate font-black uppercase" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.5rem", color: info.accent }}>{info.shortName}</p>
-                            {channelPrizes.length > 0 && (
-                              <div className="flex shrink-0 items-center gap-1" aria-label={`Premios obtenidos en ${info.shortName}`}>
-                                {channelPrizes.map((prize) => <PrizeIcon key={prize.id} prize={prize} />)}
-                              </div>
-                            )}
-                          </div>
-                          <p className="truncate text-xs" style={{ color: "#85859d" }}>{info.figure !== "–" ? info.figure : "Canal de streaming"}</p>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <p className="truncate font-black uppercase" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.5rem", color: info.accent }}>{info.shortName}</p>
+                          {channelPrizes.length > 0 && (
+                            <div className="flex shrink-0 items-center gap-1" aria-label={`Premios obtenidos en ${info.shortName}`}>
+                              {channelPrizes.map((prize) => <PrizeIcon key={prize.id} prize={prize} />)}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <span className="shrink-0 rounded-full px-2.5 py-1 font-mono text-xs" style={{ background: `${info.color}22`, color: info.accent }}>{entry.seasons} temp.</span>
