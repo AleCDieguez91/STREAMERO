@@ -19,6 +19,7 @@ import futupopLogo from "../../assets/logos/futupop.png";
 import orterixLogo from "../../assets/logos/orterix.png";
 import renderLogo from "../../assets/logos/render.png";
 import ruzuLogo from "../../assets/logos/ruzu.png";
+import verifiedLogo from "../../assets/logos/verificado.png";
 import algaEventsMd from "../../assets/docs/EVENTS/ALGA.md?raw";
 import orterixEventsMd from "../../assets/docs/EVENTS/ORTERIX.md?raw";
 import renderEventsMd from "../../assets/docs/EVENTS/RENDER.md?raw";
@@ -101,6 +102,7 @@ const DOC_PREMIOS: GamePrize[] = parsePrizesFromMarkdown(premiosMd);
 const PRIZE_ASSET_IMPORTS = import.meta.glob("../../assets/premios/*.png", { eager: true, import: "default" }) as Record<string, string>;
 const AWARDS_SEASON_PRIZE_IDS = ["MARTIN_FIERRO_DIGITAL", "PREMIOS_IDOLO", "COSCU_ARMY_AWARDS"] as const;
 type AwardsSeasonPrizeId = typeof AWARDS_SEASON_PRIZE_IDS[number];
+const VERIFIED_FOLLOWERS = 200_000;
 // Reemplazar por la ruta/import del PNG definitivo cuando esté disponible.
 
 function getPrizeAssetSrc(icon: string): string | undefined {
@@ -265,6 +267,8 @@ interface GameState {
   usedFajenseRivals: string[];
   usedEventKeys: string[];
   excludedChannels: Channel[];
+  isVerified: boolean;
+  pendingVerificationUnlock: boolean;
   awardedAutomaticPrizes: AwardedPrize[];
   pendingPrizeUnlocks: AwardedPrize[];
   awardsSeasonBoard: (AwardsSeasonPrizeId | null)[];
@@ -1470,6 +1474,8 @@ const INIT: GameState = {
   usedFajenseRivals: [],
   usedEventKeys: [],
   excludedChannels: [],
+  isVerified: false,
+  pendingVerificationUnlock: false,
   awardedAutomaticPrizes: [],
   pendingPrizeUnlocks: [],
   awardsSeasonBoard: [],
@@ -1794,7 +1800,13 @@ function getPrizeCelebrationMessage(prize: AwardedPrize): string {
   return `¡Ganaste ${prize.name}!`;
 }
 
-function PrizeUnlockModal({ prize, onContinue }: { prize: AwardedPrize; onContinue: () => void }) {
+interface UnlockModalContent {
+  visual: React.ReactNode;
+  headline: string;
+  detail: string;
+}
+
+function PrizeUnlockModal({ content, onContinue }: { content: UnlockModalContent; onContinue: () => void }) {
   return (
     <motion.div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-[#03040c]/80 p-4 backdrop-blur-sm"
@@ -1833,12 +1845,12 @@ function PrizeUnlockModal({ prize, onContinue }: { prize: AwardedPrize; onContin
           animate={{ opacity: 1, scale: 1, rotate: 0 }}
           transition={{ delay: 0.18, type: "spring", stiffness: 230, damping: 15 }}
         >
-          <PrizeUnlockVisual prize={prize} />
+          {content.visual}
         </motion.div>
         <h2 className="relative mt-6 font-black uppercase leading-none text-white" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(2rem, 7vw, 3rem)" }}>
-          {getPrizeCelebrationMessage(prize)}
+          {content.headline}
         </h2>
-        <p className="relative mt-3 text-sm" style={{ color: "#acaec6" }}>{prize.name} desbloqueada · x{prize.count}</p>
+        <p className="relative mt-3 text-sm" style={{ color: "#acaec6" }}>{content.detail}</p>
         <motion.button
           type="button"
           onClick={onContinue}
@@ -1853,6 +1865,20 @@ function PrizeUnlockModal({ prize, onContinue }: { prize: AwardedPrize; onContin
     </motion.div>
   );
 }
+
+function getPrizeUnlockContent(prize: AwardedPrize): UnlockModalContent {
+  return {
+    visual: <PrizeUnlockVisual prize={prize} />,
+    headline: getPrizeCelebrationMessage(prize),
+    detail: `${prize.name} desbloqueada · x${prize.count}`,
+  };
+}
+
+const VERIFIED_UNLOCK_CONTENT: UnlockModalContent = {
+  visual: <img src={verifiedLogo} alt="Verificado" className="h-48 w-72 object-contain sm:h-56 sm:w-80" />,
+  headline: "CONSEGUISTE EL VERIFICADO",
+  detail: "Tu cuenta ahora está verificada permanentemente.",
+};
 
 function AwardsSeasonResultModal({ prizes, onContinue }: { prizes: GamePrize[]; onContinue: () => void }) {
   const hasPrizes = prizes.length > 0;
@@ -1923,6 +1949,15 @@ function PrizeIcon({ prize, className = "h-7 w-7" }: { prize: AwardedPrize; clas
   );
 }
 
+function StreamerName({ name, isVerified }: { name: string; isVerified: boolean }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1.5">
+      <span className="truncate">{name}</span>
+      {isVerified && <img src={verifiedLogo} alt="Verificado" title="Cuenta verificada" className="h-5 w-5 shrink-0 object-contain" />}
+    </span>
+  );
+}
+
 function CareerSidebar({ gs }: { gs: GameState }) {
   const profile = gs.streamerProfile;
   const streamerTypeColor = profile?.streamerType === "Gamer"
@@ -1944,7 +1979,7 @@ function CareerSidebar({ gs }: { gs: GameState }) {
           style={{ border: "1px solid #ec4899", boxShadow: "0 0 16px rgba(236,72,153,0.26)" }}>
           <PixelAvatarPlaceholder variant={profile?.avatar ?? "avatar-a"} />
         </div>
-        <p className="mt-2 truncate text-2xl font-semibold text-white">{gs.streamerName}</p>
+        <p className="mt-2 truncate text-2xl font-semibold text-white"><StreamerName name={gs.streamerName} isVerified={gs.isVerified} /></p>
 
         <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-3" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
           <div className="flex items-center gap-2 rounded-xl px-2 py-2 text-left" style={{ background: "rgba(124,58,237,0.08)" }}>
@@ -2746,7 +2781,7 @@ function ScreenGameOver({ gs }: { gs: GameState }) {
               style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(3rem, 6vw, 5rem)" }}>
               Tu carrera terminó
             </h2>
-            <p className="mt-2 text-lg" style={{ color: "#c1c1d0" }}>{gs.streamerName}, este es el legado que construiste.</p>
+            <p className="mt-2 text-lg" style={{ color: "#c1c1d0" }}><StreamerName name={gs.streamerName} isVerified={gs.isVerified} />, este es el legado que construiste.</p>
           </div>
           <motion.div initial={{ scale: 0.84, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.22, type: "spring" }}
             className="inline-flex items-center gap-2 self-start rounded-2xl px-5 py-3 font-black uppercase tracking-wider lg:self-auto"
@@ -2847,6 +2882,7 @@ export default function App() {
 
   const applyEffectiveDelta = (delta: StatDelta, s: GameState) => {
     const nextFollowers = Math.max(0, s.followers + delta.followers);
+    const verificationUnlocked = !s.isVerified && nextFollowers >= VERIFIED_FOLLOWERS;
     const nextAwards = awardAutomaticPrizes(nextFollowers, s.awardedAutomaticPrizes, s.currentChannel);
     const prizeUnlocks = getAwardIncrements(s.awardedAutomaticPrizes, nextAwards);
     return {
@@ -2855,6 +2891,8 @@ export default function App() {
       seasonAccum: {
         followers: s.seasonAccum.followers + delta.followers,
       },
+      isVerified: s.isVerified || verificationUnlocked,
+      pendingVerificationUnlock: s.pendingVerificationUnlock || verificationUnlocked,
       awardedAutomaticPrizes: nextAwards,
       pendingPrizeUnlocks: [...s.pendingPrizeUnlocks, ...prizeUnlocks],
     };
@@ -3068,6 +3106,10 @@ export default function App() {
     setGs((s) => ({ ...s, pendingPrizeUnlocks: s.pendingPrizeUnlocks.slice(1) }));
   }, []);
 
+  const handleVerificationUnlockContinue = useCallback(() => {
+    setGs((s) => ({ ...s, pendingVerificationUnlock: false }));
+  }, []);
+
   const handleAwardsSeasonResultContinue = useCallback(() => {
     setGs((s) => s.phase === "awardsSeason" && s.awardsSeasonEndedByEmpty ? completeSeason(s) : s);
   }, []);
@@ -3131,8 +3173,10 @@ export default function App() {
         )}
       </AnimatePresence>
       <AnimatePresence>
-        {gs.pendingPrizeUnlocks[0] && (
-          <PrizeUnlockModal prize={gs.pendingPrizeUnlocks[0]} onContinue={handlePrizeUnlockContinue} />
+        {gs.pendingVerificationUnlock ? (
+          <PrizeUnlockModal content={VERIFIED_UNLOCK_CONTENT} onContinue={handleVerificationUnlockContinue} />
+        ) : gs.pendingPrizeUnlocks[0] && (
+          <PrizeUnlockModal content={getPrizeUnlockContent(gs.pendingPrizeUnlocks[0])} onContinue={handlePrizeUnlockContinue} />
         )}
         {gs.phase === "awardsSeason" && gs.awardsSeasonCompleted && gs.awardsSeasonEndedByEmpty && gs.pendingPrizeUnlocks.length === 0 && (
           <AwardsSeasonResultModal prizes={awardsSeasonResultPrizes} onContinue={handleAwardsSeasonResultContinue} />
