@@ -1582,7 +1582,7 @@ function ScreenNaming({ onConfirm }: { onConfirm: (name: string, profile: Stream
             ¿QUIÉN SOS EN STREAM?
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed" style={{ color: "#8080a8" }}>
-            Estos datos van a definir tu perfil de jugador y quedarán guardados durante toda la carrera.
+            Definí tu estilo y empezá tu carrera.
           </p>
         </header>
 
