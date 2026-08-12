@@ -1,0 +1,29 @@
+EVENTO: 
+CANAL: 
+APARICION: 
+MOMENTO: 
+TIPO: 
+TÍTULO:
+DESCRIPCIÓN:
+
+OPCIÓN A: 
+SUBTÍTULO: 
+PROBABILIDAD: 70%
+SALE BIEN:
+CONSECUENCIAS: +1k seguidores
++4 reputación
+
+SALE MAL:
+CONSECUENCIAS: +500 seguidores
+-1 reputación
+
+OPCIÓN B: 
+SUBTÍTULO:
+PROBABILIDAD: 30%
+
+SALE BIEN: 
+CONSECUENCIAS: +2 reputacion
+
+SALE MAL: 
+CONSECUENCIAS: -1.5k seguidores
+-2 reputacion

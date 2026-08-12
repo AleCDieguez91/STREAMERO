@@ -22,6 +22,7 @@ import algaEventsMd from "../../assets/docs/EVENTS/ALGA.md?raw";
 import orterixEventsMd from "../../assets/docs/EVENTS/ORTERIX.md?raw";
 import renderEventsMd from "../../assets/docs/EVENTS/RENDER.md?raw";
 import ruzuEventsMd from "../../assets/docs/EVENTS/RUZU.md?raw";
+import futupopEventsMd from "../../assets/docs/EVENTS/FUTUPOP.md?raw";
 import premiosMd from "../../assets/docs/LISTS/PREMIOS.md?raw";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -528,7 +529,7 @@ function parseAutomaticEventsFromMarkdown(markdown: string): GameEvent[] {
       ?.replace(/^DESCRIPCIÓN:\s*/i, "")
       ?.replace(/^DESCRIPCION:\s*/i, "") ?? "";
     const appearanceLine = lines.find((line) => /^APARICION:/i.test(line));
-    const appearance = appearanceLine?.replace(/^APARICION:\s*/i, "").trim().toUpperCase() === "UNA_VEZ"
+    const appearance = appearanceLine?.replace(/^APARICION:\s*/i, "").replace(/\\/g, "").trim().toUpperCase() === "UNA_VEZ"
       ? "UNA_VEZ"
       : undefined;
 
@@ -576,7 +577,7 @@ function parseEventsFromMarkdown(markdown: string): GameEvent[] {
       ?.replace(/^DESCRIPCI(?:ÓN|ON):\s*/i, "") ?? "";
 
     const appearanceLine = lines.find((line) => /^APARICION:/i.test(line));
-    const appearance = appearanceLine?.replace(/^APARICION:\s*/i, "").trim().toUpperCase() === "UNA_VEZ"
+    const appearance = appearanceLine?.replace(/^APARICION:\s*/i, "").replace(/\\/g, "").trim().toUpperCase() === "UNA_VEZ"
       ? "UNA_VEZ"
       : undefined;
 
@@ -670,8 +671,9 @@ function parseEventsFromMarkdown(markdown: string): GameEvent[] {
 const DOC_EVENTS: Partial<Record<Channel, GameEvent[]>> = {
   ALGA: parseAutomaticEventsFromMarkdown(algaEventsMd),
   ORTERIX: parseEventsFromMarkdown(orterixEventsMd).filter((event) => event.id === "ORTERIX_002"),
-  RENDER: parseAutomaticEventsFromMarkdown(renderEventsMd),
+  RENDER: parseEventsFromMarkdown(renderEventsMd),
   "RUZU TV": parseEventsFromMarkdown(ruzuEventsMd),
+  FUTUPOP: parseEventsFromMarkdown(futupopEventsMd),
 };
 
 // Reload markdown-based automatic events at runtime by fetching the raw
@@ -684,6 +686,7 @@ async function refreshDocEvents() {
     ORTERIX: "../../assets/docs/EVENTS/ORTERIX.md",
     RENDER: "../../assets/docs/EVENTS/RENDER.md",
     "RUZU TV": "../../assets/docs/EVENTS/RUZU.md",
+    FUTUPOP: "../../assets/docs/EVENTS/FUTUPOP.md",
   };
 
   for (const [channel, relPath] of Object.entries(mapping)) {
@@ -692,7 +695,7 @@ async function refreshDocEvents() {
       const res = await fetch(url);
       if (!res.ok) continue;
       const text = await res.text();
-      const parsed = channel === "RUZU TV"
+      const parsed = channel === "RUZU TV" || channel === "FUTUPOP" || channel === "RENDER"
         ? parseEventsFromMarkdown(text)
         : channel === "ORTERIX"
           ? parseEventsFromMarkdown(text).filter((event) => event.id === "ORTERIX_002")
@@ -1062,14 +1065,6 @@ const EVENTS: Record<Channel, GameEvent[]> = {
 
   RENDER: [
     {
-      type: "automatic",
-      title: "Brote de Tuberculosis en el Canal",
-      description: "Un brote de tuberculosis en el estudio se expande sin control. Te contagiás. Perdés un mes de programa, tus números tardan en recuperarse y varios invitados que tenías planeados se dan de baja por tu ausencia.",
-      consequences: [
-        { followers: -500, reputation: -1, message: "Tu salud y la del canal se resienten. El estudio queda en pausa y varios planes se cancelan." },
-      ],
-    },
-    {
       title: "Entrevista a Político Polémico",
       description: "RENDER consiguió al político más debatido del momento. Tomás Report te confía la entrevista.",
       options: [
@@ -1282,68 +1277,6 @@ const EVENTS: Record<Channel, GameEvent[]> = {
     },
   ],
 
-  FUTUPOP: [
-    {
-      title: "Festival Nacional de Cumbia",
-      description: "FUTUPOP cubre el festival de cumbia más convocante del año. La conducción del stream es tuya si la querés.",
-      options: [
-        { text: "Conducir el evento de principio a fin", detail: "La noche entera en tus manos.", successChance: 0.57,
-          success: { followers: 13000, reputation: 5, message: "La noche fue increíble. El ambiente de la cumbia te adoptó como uno de los suyos." },
-          failure: { followers: -4000, reputation: 0, message: "El ritmo del festival era mucho para manejarlo solo. La conducción quedó desprolija." } },
-        { text: "Hacer entrevistas desde el piso", detail: "Más espontáneo y cercano.", successChance: 0.73,
-          success: { followers: 7000, reputation: 3, message: "Las entrevistas espontáneas fueron los mejores clips de la noche." },
-          failure: { followers: 800, reputation: 1, message: "El piso estaba muy caótico. Poco de lo que grabaste salió bien." } },
-      ],
-    },
-    {
-      title: "Entrevista a Artista Emergente",
-      description: "El canal descubrió a una artista nueva que puede ser la próxima grande de la cumbia. La entrevista te la ofrecen a vos.",
-      options: [
-        { text: "Entrevista profunda, emotiva, sin apuro", detail: "Dejar que la historia se cuente sola.", successChance: 0.67,
-          success: { followers: 9000, reputation: 3, message: "La artista lloró en cámara. El clip circuló en todos lados. Momento real." },
-          failure: { followers: -2000, reputation: 0, message: "La artista se cerró. No lograste que se abriera en ningún momento." } },
-        { text: "Liviano, divertido, con mucha energía", detail: "El tono del canal, respetado.", successChance: 0.71,
-          success: { followers: 6000, reputation: 2, message: "La artista se fue sonriendo y el canal quedó contento. Trabajo limpio." },
-          failure: { followers: -1000, reputation: 0, message: "El tono liviano no conectó con la artista. La entrevista no tuvo chispa." } },
-      ],
-    },
-    {
-      title: "Debate: ¿La Cumbia Llegó a la Alta Cultura?",
-      description: "FUTUPOP organiza un debate que nadie esperaba: ¿la cumbia merece ser tomada en serio culturalmente?",
-      options: [
-        { text: "Defender la cumbia con todo lo que tenés", detail: "El género como expresión legítima.", successChance: 0.62,
-          success: { followers: 11000, reputation: 2, message: "Tu defensa fue apasionada y argumentada. La audiencia te aplaudió de pie." },
-          failure: { followers: -3000, reputation: 0, message: "Los argumentos no convencieron y quedaste como alguien sin criterio." } },
-        { text: "Análisis más equilibrado con contexto histórico", detail: "El conocimiento como diferencial.", successChance: 0.57,
-          success: { followers: 7000, reputation: 3, message: "Sorprendiste con datos y contexto. Nadie esperaba ese nivel de análisis acá." },
-          failure: { followers: -4000, reputation: 0, message: "El análisis serio no pegó en un canal que vive del estilo de FUTUPOP." } },
-      ],
-    },
-    {
-      title: "Lanzamiento de Álbum en Exclusiva",
-      description: "Un artista importante lanza su álbum y el canal tiene la exclusiva. Vos sos el presentador del evento.",
-      options: [
-        { text: "Improvisación total, al ritmo del artista", detail: "Fluir con la energía del momento.", successChance: 0.56,
-          success: { followers: 12000, reputation: 4, message: "La energía del evento se transmitió a través de la pantalla. Magia en vivo." },
-          failure: { followers: -5000, reputation: 0, message: "La improvisación generó momentos incómodos que el artista no olvidó." } },
-        { text: "Presentación cuidada con datos y contexto", detail: "Darle peso al lanzamiento.", successChance: 0.70,
-          success: { followers: 7000, reputation: 3, message: "El artista quedó impresionado. El lanzamiento tuvo la seriedad que merecía." },
-          failure: { followers: -1000, reputation: 1, message: "Demasiado formal para el espíritu del canal. La audiencia prefería el estilo de FUTUPOP." } },
-      ],
-    },
-    {
-      title: "Escándalo en el Ambiente Cumbiero",
-      description: "Dos artistas del género tienen una pelea pública y explosiva. FUTUPOP te manda a cubrir el drama.",
-      options: [
-        { text: "Cubrir el drama sin filtros ni moderación", detail: "El estilo puro y sin vergüenza.", successChance: 0.54,
-          success: { followers: 15000, reputation: 3, message: "El drama fue masivo y vos estuviste en el centro de todo. Pico de audiencia." },
-          failure: { followers: -6000, reputation: 0, message: "Los dos artistas se enojaron con el canal. Crisis con los dos lados." } },
-        { text: "Nota equilibrada con los dos lados de la historia", detail: "Periodismo del estilo de FUTUPOP.", successChance: 0.68,
-          success: { followers: 8000, reputation: 2, message: "Tu equilibrio contrastó con el caos y te diferenciaste. Inesperado en FUTUPOP." },
-          failure: { followers: -2000, reputation: 0, message: "La audiencia del canal quería drama puro. El equilibrio los aburrió." } },
-      ],
-    },
-  ],
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
