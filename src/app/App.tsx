@@ -361,8 +361,8 @@ const CHANNELS: Record<Channel, ChannelInfo> = {
     shortName: "CARANCHO",
     logo: caranchoLogo,
     tagline: "El canal más alineado con el oficialismo. Programa estrella: \"La Visa\"",
-    description: "Plataforma de propaganda del movimiento libertario. El Gordo Pan es la voz del canal. Mismo dueño que RENDER.",
-    figure: "El Gordo Pan",
+    description: "Plataforma de propaganda del movimiento libertario. El Gordo Flan es la voz del canal. Mismo dueño que RENDER.",
+    figure: "El Gordo Flan",
     remuneration: 4, demand: "Alta",
     passiveMoney: 16,
     color: "#67bed9", glow: "rgba(103,190,217,0.35)", accent: "#67bed9",
@@ -1135,31 +1135,31 @@ const EVENTS: Record<Channel, GameEvent[]> = {
   CARANCHO: [
     {
       title: "Propaganda en Horario Central",
-      description: "El Gordo Pan quiere que defiendas la posición del gobierno en vivo durante el horario de mayor audiencia. Sin matices.",
+      description: "El Gordo Flan quiere que defiendas la posición del gobierno en vivo durante el horario de mayor audiencia. Sin matices.",
       options: [
         { text: "Defender al 100%, sin fisuras", detail: "La línea del canal, completa.", successChance: 0.67,
-          success: { followers: 9000, reputation: 5, message: "El Gordo Pan te felicitó en vivo. El canal quedó muy satisfecho." },
+          success: { followers: 9000, reputation: 5, message: "El Gordo Flan te felicitó en vivo. El canal quedó muy satisfecho." },
           failure: { followers: -5000, reputation: 0, message: "Hubo un momento donde no tenías respuesta. El canal lo notó." } },
         { text: "Matizar el mensaje sutilmente", detail: "Un gramo de honestidad propia.", successChance: 0.38,
           success: { followers: 16000, reputation: 3, message: "El matiz generó debate y paradójicamente aumentó la audiencia." },
-          failure: { followers: -8000, reputation: 0, message: "CARANCHO no tolera matices. El Gordo Pan lo tomó como una traición." } },
+          failure: { followers: -8000, reputation: 0, message: "CARANCHO no tolera matices. El Gordo Flan lo tomó como una traición." } },
       ],
     },
     {
       title: "Entrevista a Funcionario Oficialista",
-      description: "El Gordo Pan consiguió un ministro. El formato es claro: preguntas amigables, ninguna incomodidad.",
+      description: "El Gordo Flan consiguió un ministro. El formato es claro: preguntas amigables, ninguna incomodidad.",
       options: [
         { text: "Seguir el guión del canal al pie de la letra", detail: "La entrevista que el canal quiere.", successChance: 0.72,
           success: { followers: 7000, reputation: 5, message: "El funcionario quedó contento. El canal también. El trabajo, hecho." },
           failure: { followers: -3000, reputation: 0, message: "Incluso siguiendo el guión, algo salió mal. El funcionario se molestó." } },
         { text: "Lanzar una pregunta incómoda de rebote", detail: "Un momento de periodismo real.", successChance: 0.33,
           success: { followers: 19000, reputation: 6, message: "La pregunta incómoda se viralizó. Inesperadamente, incluso CARANCHO la celebró." },
-          failure: { followers: -10000, reputation: 0, message: "El Gordo Pan cortó tu micrófono en vivo. Crisis interna sin precedentes." } },
+          failure: { followers: -10000, reputation: 0, message: "El Gordo Flan cortó tu micrófono en vivo. Crisis interna sin precedentes." } },
       ],
     },
     {
       title: "Evento de Campaña en Vivo",
-      description: "CARANCHO organiza un evento político masivo. El Gordo Pan quiere que seas el streamer estrella de la cobertura.",
+      description: "CARANCHO organiza un evento político masivo. El Gordo Flan quiere que seas el streamer estrella de la cobertura.",
       options: [
         { text: "Cobertura con entusiasmo total", detail: "Comprometerte con el evento.", successChance: 0.63,
           success: { followers: 11000, reputation: 5, message: "Tu energía contagió. El evento fue un éxito y vos fuiste parte de eso." },
