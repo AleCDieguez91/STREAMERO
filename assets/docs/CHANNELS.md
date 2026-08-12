@@ -47,7 +47,7 @@ Tipo de eventos:
 - Invitados
 - Especiales
 
-TIPO_FAVORECIDO: Reaccion, Deportes, Comediante
+TIPO_FAVORECIDO: Reaccion, Comediante
 PERSONALIDAD_FAVORECIDA: Picante, Chill, Carismatico
 
 TIPO_DESFAVORECIDO: Gamer, Politica
@@ -130,7 +130,7 @@ Evento exclusivo:
 Cambio de dueños.
 
 TIPO_FAVORECIDO: Reaccion, Comediante, Politica
-PERSONALIDAD_FAVORECIDA: Sesudo, Chill, Carismatico
+PERSONALIDAD_FAVORECIDA: Sesudo, Chill
 
 TIPO_DESFAVORECIDO: Gamer, Deportes
 PERSONALIDAD_DESFAVORECIDA: Picante
@@ -164,11 +164,11 @@ Medio
 Exigencia:
 Alta
 
-TIPO_FAVORECIDO: Politica, Reaccion
-PERSONALIDAD_FAVORECIDA: Sesudo, Chill, Picante
+TIPO_FAVORECIDO: Politica
+PERSONALIDAD_FAVORECIDA: Sesudo, Picante
 
 TIPO_DESFAVORECIDO: Gamer, Comediante, Deportes
-PERSONALIDAD_DESFAVORECIDA: Sesudo
+PERSONALIDAD_DESFAVORECIDA: Chill
 
 ---
 
@@ -201,7 +201,7 @@ Exigencia:
 Alta
 
 TIPO_FAVORECIDO: Reaccion, Politica, Comediante
-PERSONALIDAD_FAVORECIDA: Sesudo, Carismatico
+PERSONALIDAD_FAVORECIDA: Sesudo
 
 TIPO_DESFAVORECIDO: Gamer, Deportes
 PERSONALIDAD_DESFAVORECIDA: Picante, Chill
@@ -237,7 +237,7 @@ Exigencia:
 Alta
 
 TIPO_FAVORECIDO: Reaccion, Deportes
-PERSONALIDAD_FAVORECIDA: Picante, Chill, Carismatico
+PERSONALIDAD_FAVORECIDA: Picante, Chill
 
 TIPO_DESFAVORECIDO: Gamer, Politica, Comediante
 PERSONALIDAD_DESFAVORECIDA: Sesudo

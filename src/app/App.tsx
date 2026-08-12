@@ -100,6 +100,11 @@ const DOC_PREMIOS: GamePrize[] = parsePrizesFromMarkdown(premiosMd);
 const PRIZE_ASSET_IMPORTS = import.meta.glob("../../assets/premios/*.png", { eager: true, import: "default" }) as Record<string, string>;
 const AWARDS_SEASON_PRIZE_IDS = ["MARTIN_FIERRO_DIGITAL", "PREMIOS_IDOLO", "COSCU_ARMY_AWARDS"] as const;
 type AwardsSeasonPrizeId = typeof AWARDS_SEASON_PRIZE_IDS[number];
+const AWARDS_SEASON_FOLLOWER_REWARDS: Record<AwardsSeasonPrizeId, number> = {
+  MARTIN_FIERRO_DIGITAL: 30_000,
+  PREMIOS_IDOLO: 10_000,
+  COSCU_ARMY_AWARDS: 20_000,
+};
 const VERIFIED_FOLLOWERS = 200_000;
 // Reemplazar por la ruta/import del PNG definitivo cuando esté disponible.
 
@@ -3108,10 +3113,17 @@ export default function App() {
       if (!prize) return s;
       const nextAwards = awardPrize(s.awardedAutomaticPrizes, prize, s.currentChannel, { forceAccumulable: true });
       const prizeUnlocks = getAwardIncrements(s.awardedAutomaticPrizes, nextAwards);
+      const wasAlreadyAwarded = s.awardedAutomaticPrizes.some((award) => award.id === prizeId);
+      const followersReward = wasAlreadyAwarded ? 0 : AWARDS_SEASON_FOLLOWER_REWARDS[prizeId];
+      const nextFollowers = s.followers + followersReward;
+      const verificationUnlocked = !s.isVerified && nextFollowers >= VERIFIED_FOLLOWERS;
       const foundAllPrizes = AWARDS_SEASON_PRIZE_IDS.every((id) => awardsSeasonRevealed.some((revealedIndex) => s.awardsSeasonBoard[revealedIndex] === id));
 
       return {
         ...s,
+        followers: nextFollowers,
+        isVerified: s.isVerified || verificationUnlocked,
+        pendingVerificationUnlock: s.pendingVerificationUnlock || verificationUnlocked,
         awardedAutomaticPrizes: nextAwards,
         pendingPrizeUnlocks: [...s.pendingPrizeUnlocks, ...prizeUnlocks],
         awardsSeasonRevealed,
