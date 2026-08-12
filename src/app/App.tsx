@@ -2839,7 +2839,7 @@ export default function App() {
   };
 
   const applyEffectiveDelta = (delta: StatDelta, s: GameState) => {
-    const nextFollowers = Math.max(0, s.followers + delta.followers);
+    const nextFollowers = Math.max(1000, s.followers + delta.followers);
     const verificationUnlocked = !s.isVerified && nextFollowers >= VERIFIED_FOLLOWERS;
     const nextAwards = awardAutomaticPrizes(nextFollowers, s.awardedAutomaticPrizes, s.currentChannel);
     const prizeUnlocks = getAwardIncrements(s.awardedAutomaticPrizes, nextAwards);
