@@ -62,8 +62,9 @@ export function calculateChannelAffinity(
 ): ChannelAffinityResult {
   const typeMatch = getMatch(streamerType, channel?.favoredTypes ?? [], channel?.disfavoredTypes ?? []);
   const personalityMatch = getMatch(personality, channel?.favoredPersonalities ?? [], channel?.disfavoredPersonalities ?? []);
-  const score = (typeMatch === "favored" ? 20 : typeMatch === "disfavored" ? -20 : 0)
-    + (personalityMatch === "favored" ? 15 : personalityMatch === "disfavored" ? -15 : 0);
+  const typeScore = typeMatch === "favored" ? 25 : typeMatch === "disfavored" ? -25 : 0;
+  const personalityScore = personalityMatch === "favored" ? 25 : personalityMatch === "disfavored" ? -25 : 0;
+  const score = Math.max(0, Math.min(100, 50 + typeScore + personalityScore));
 
   return { score, typeMatch, personalityMatch };
 }
@@ -72,22 +73,12 @@ export function getChannelAffinity(channel: ChannelAffinityId, streamerType: str
   return calculateChannelAffinity(CHANNEL_AFFINITIES[channel], streamerType, personality);
 }
 
-export function getAffinityReachModifier(score: number): number {
-  if (score >= 35) return 0.20;
-  if (score >= 20) return 0.12;
-  if (score >= 5) return 0.04;
-  if (score <= -35) return -0.15;
-  if (score <= -20) return -0.10;
-  if (score <= -15) return -0.07;
-  return 0;
-}
-
 export function getAffinityOfferWeight(score: number): number {
-  if (score >= 35) return 8;
-  if (score >= 20) return 5;
-  if (score >= 5) return 3;
-  if (score <= -35) return 0.25;
-  if (score <= -20) return 0.5;
-  if (score <= -15) return 1;
+  if (score >= 95) return 8;
+  if (score >= 75) return 5;
+  if (score >= 60) return 3;
+  if (score <= 5) return 0.25;
+  if (score <= 25) return 0.5;
+  if (score <= 40) return 1;
   return 2;
 }

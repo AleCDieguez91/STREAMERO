@@ -2,13 +2,8 @@ import React, { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Award, CheckCircle2, Info, Rocket, Target, Users } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group";
-import {
-  scaleOutcomeByReach,
-  type ContractEvaluation,
-  type StreamerAffinityProfile,
-  type StreamerType,
-} from "./game/contract-algorithm";
-import { calculateChannelAffinity, getAffinityOfferWeight, getAffinityReachModifier, getChannelAffinity } from "./game/channel-affinities";
+import { scaleOutcomeByAffinity } from "./game/contract-algorithm";
+import { getAffinityOfferWeight, getChannelAffinity } from "./game/channel-affinities";
 import algaLogo from "../../assets/logos/alga.png";
 import assLogo from "../../assets/logos/ass.png";
 import caranchoLogo from "../../assets/logos/carancho.png";
@@ -298,7 +293,6 @@ interface ChannelInfo {
   description: string;
   figure: string;
   remuneration: number;
-  reach: number;
   demand: "Baja" | "Media" | "Alta";
   passiveMoney: number;
   color: string;
@@ -314,7 +308,7 @@ const CHANNELS: Record<Channel, ChannelInfo> = {
     tagline: "Entre recitales, deportes y humor. Su programa estrella es \"Bajen un cambio\"",
     description: "El canal más irreverente. Humor ácido, rock en vivo y deportes sin protocolo. Azuquita Rodrigues es la estrella.",
     figure: "Azuquita Rodrigues",
-    remuneration: 3, reach: 4, demand: "Media",
+    remuneration: 3, demand: "Media",
     passiveMoney: 12,
     color: "#7c3aed", glow: "rgba(124,58,237,0.35)", accent: "#a78bfa",
   },
@@ -325,7 +319,7 @@ const CHANNELS: Record<Channel, ChannelInfo> = {
     tagline: "El canal más relajado del streaming argentino. Nadie sabe exactamente qué va a pasar cuando comienza un programa. Programa estrella: \"Flashee que flotaba\"",
     description: "Improvisación al máximo nivel. Migue Granate convirtió el caos en un formato. Todo puede pasar en vivo.",
     figure: "Migue Granate",
-    remuneration: 4, reach: 4, demand: "Media",
+    remuneration: 4, demand: "Media",
     passiveMoney: 18,
     color: "#fe0144", glow: "rgba(254,1,68,0.35)", accent: "#ff3d7a",
   },
@@ -336,7 +330,7 @@ const CHANNELS: Record<Channel, ChannelInfo> = {
     tagline: "Si rueda una pelota, ASS está ahí. Programa estrella: \"No podemos vender\"",
     description: "Sin distracciones. Solo fútbol. Fabio Assado y su equipo son los referentes del análisis futbolístico en streaming.",
     figure: "Fabio Assado",
-    remuneration: 2, reach: 3, demand: "Baja",
+    remuneration: 2, demand: "Baja",
     passiveMoney: 7,
     color: "#0284c7", glow: "rgba(2,132,199,0.35)", accent: "#38bdf8",
   },
@@ -347,7 +341,7 @@ const CHANNELS: Record<Channel, ChannelInfo> = {
     tagline: "Un canal donde cualquier conversación puede terminar siendo viral. Programa estrella: \"Nadie habla\"",
     description: "Humor subido de tono, charlas banales de primeras citas y actualidad sin filtro. Nico Bognato al frente de todo.",
     figure: "Nico Bognato",
-    remuneration: 3, reach: 3, demand: "Baja",
+    remuneration: 3, demand: "Baja",
     passiveMoney: 10,
     color: "#db2777", glow: "rgba(219,39,119,0.35)", accent: "#f472b6",
   },
@@ -358,7 +352,7 @@ const CHANNELS: Record<Channel, ChannelInfo> = {
     tagline: "La actualidad nunca descansa. Su programa estrella es \"Hubo algo acá\".",
     description: "Periodismo de fondo. Tomás Report lleva el análisis político al streaming. Cuidado: el canal puede cambiar de manos.",
     figure: "Tomás Report",
-    remuneration: 4, reach: 4, demand: "Alta",
+    remuneration: 4, demand: "Alta",
     passiveMoney: 14,
     color: "#9f1239", glow: "rgba(159,18,57,0.35)", accent: "#fb7185",
   },
@@ -369,7 +363,7 @@ const CHANNELS: Record<Channel, ChannelInfo> = {
     tagline: "El canal más alineado con el oficialismo. Programa estrella: \"La Visa\"",
     description: "Plataforma de propaganda del movimiento libertario. El Gordo Pan es la voz del canal. Mismo dueño que RENDER.",
     figure: "El Gordo Pan",
-    remuneration: 4, reach: 3, demand: "Alta",
+    remuneration: 4, demand: "Alta",
     passiveMoney: 16,
     color: "#67bed9", glow: "rgba(103,190,217,0.35)", accent: "#67bed9",
   },
@@ -380,7 +374,7 @@ const CHANNELS: Record<Channel, ChannelInfo> = {
     tagline: "Política, entrevistas y cultura. Programa estrella: \"Industria Popular\"", 
     description: "Debates largos, análisis y entrevistas profundas. Es un canal donde las conversaciones suelen ocupar toda la transmisión. Programa estrella: \"Industria Popular\".",
     figure: "Pepe Racinclub",
-    remuneration: 3, reach: 4, demand: "Media",
+    remuneration: 3, demand: "Media",
     passiveMoney: 13,
     color: "#1d4ed8", glow: "rgba(29,78,216,0.35)", accent: "#93c5fd",
   },
@@ -391,7 +385,7 @@ const CHANNELS: Record<Channel, ChannelInfo> = {
     tagline: "Donde la cultura también es protagonista. Programa estrella: \"Mira a quien traje\"",
     description: "Donde la cultura también es protagonista. Programa estrella: \"Mira a quien traje\"",
     figure: "Furia Mentolini",
-    remuneration: 2, reach: 3, demand: "Baja",
+    remuneration: 2, demand: "Baja",
     passiveMoney: 6,
     color: "#047857", glow: "rgba(4,120,87,0.35)", accent: "#34d399",
   },
@@ -406,33 +400,20 @@ function ch(name: Channel): ChannelInfo {
   return CHANNELS[name] ?? FALLBACK_CHANNEL;
 }
 
-function toStreamerAffinity(profile: StreamerProfile | null): StreamerAffinityProfile {
-  // El perfil nulo solo puede aparecer antes de completar la creación del jugador.
-  // El valor neutral mantiene seguras las vistas de desarrollo y los estados antiguos.
-  if (!profile) {
-    return {
-      streamerType: "Reacción",
-    };
-  }
-
-  return {
-    streamerType: profile.streamerType,
-  };
+function getContractAffinity(gs: GameState, channel: Channel): number {
+  return gs.streamerProfile
+    ? getChannelAffinity(channel, gs.streamerProfile.streamerType, gs.streamerProfile.personality).score
+    : channel === gs.currentChannel
+      ? gs.currentChannelAffinity
+      : 50;
 }
 
-function getContractEvaluation(gs: GameState, channel: Channel): ContractEvaluation {
-  const affinity = channel === gs.currentChannel
-    ? gs.currentChannelAffinity
-    : gs.streamerProfile
-      ? getChannelAffinity(channel, gs.streamerProfile.streamerType, gs.streamerProfile.personality).score
-      : 0;
-  const personalizedReach = (CHANNELS[channel] ?? FALLBACK_CHANNEL).reach * 20 * (1 + getAffinityReachModifier(affinity));
-  return {
-    compatibility: { streamerType: null, total: affinity },
-    personalizedReach,
-    reachPips: Math.max(1, Math.min(5, Math.round(personalizedReach / 20))),
-    exposureMultiplier: 0.6 + 0.8 * (Math.max(0, Math.min(100, personalizedReach)) / 100),
-  };
+function getAffinityLabel(affinity: number): string {
+  if (affinity >= 80) return "Excelente encaje";
+  if (affinity >= 60) return "Buen encaje";
+  if (affinity >= 40) return "Encaje intermedio";
+  if (affinity >= 20) return "Encaje bajo";
+  return "Muy poco afín";
 }
 
 function updateRecentPerformance(gs: GameState, periodScore: number) {
@@ -715,15 +696,15 @@ const QUERATINA_SONG_TITLE = "La Canción de la Estrella de Mar";
 const EVENTS: Record<Channel, GameEvent[]> = {
   ORTERIX: [
     {
-      title: "El Recital de la Década",
-      description: "ORTERIX cubre en vivo el festival de rock más grande del año. Azuquita Rodrigues te nomina para la transmisión principal.",
+      title: "Conductor de último minuto",
+      description: "El programa 'Rosquete al Sol' te pide que cubras al conductor. No tenes nada preparado .",
       options: [
-        { text: "Tomar la conducción del stream completo", detail: "Protagonismo total, riesgo total.", successChance: 0.52,
-          success: { followers: 11000, reputation: 5, message: "Robaste el show. La transmisión fue lo más visto del festival." },
+        { text: "Tomar la conducción sin miedo", detail: "Protagonismo total, riesgo total.", successChance: 0.52,
+          success: { followers: 11000, reputation: 5, message: "Robaste el show. La transmisión fue lo más visto del día." },
           failure: { followers: -1000, reputation: 0, message: "Los nervios se notaron demasiado. La audiencia no perdonó." } },
-        { text: "Cubrir el backstage con entrevistas", detail: "Contenido cercano, menos presión.", successChance: 0.74,
-          success: { followers: 6000, reputation: 3, message: "Entrevistas espontáneas que se convirtieron en los clips de la noche." },
-          failure: { followers: 800, reputation: 1, message: "Cobertura correcta pero sin momentos que se recuerden." } },
+        { text: "Pedir ser panelista", detail: "Menos presión.", successChance: 0.74,
+          success: { followers: 6000, reputation: 2, message: "Un par de reels del programa se hacen virales gracias a vos." },
+          failure: { followers: 800, reputation: 1, message: "Participación correcta pero olvidable." } },
       ],
     },
     {
@@ -939,8 +920,8 @@ const EVENTS: Record<Channel, GameEvent[]> = {
 
   ASS: [
     {
-      title: "Clásico Argentino en Vivo",
-      description: "ASS cubre el partido más importante del año. Fabio Assado te ofrece un lugar en la transmisión principal.",
+      title: "Transmisión en Vivo",
+      description: "ASS cubre el partido de la fecha. Fabio Assado te ofrece un lugar en la transmisión principal.",
       options: [
         { text: "Análisis técnico en tiempo real", detail: "Datos, contexto, profundidad.", successChance: 0.62,
           success: { followers: 10000, reputation: 3, message: "Precisión quirúrgica. Los hinchas te aceptaron como voz autorizada." },
@@ -1722,23 +1703,6 @@ function ScreenNaming({ onConfirm }: { onConfirm: (name: string, profile: Stream
   );
 }
 
-function ContractPips({ value, color }: { value: number; color: string }) {
-  return (
-    <div className="flex gap-1" aria-label={`${value} de 5`}>
-      {Array.from({ length: 5 }, (_, index) => (
-        <span
-          key={index}
-          className="h-3 flex-1 rounded-[3px]"
-          style={{
-            background: index < value ? color : "rgba(255,255,255,0.08)",
-            boxShadow: index < value ? `0 0 8px ${color}55` : "none",
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
 function PrizeUnlockVisual({ prize }: { prize: AwardedPrize }) {
   const source = getPrizeAssetSrc(prize.icon);
 
@@ -1940,14 +1904,12 @@ function CareerSidebar({ gs }: { gs: GameState }) {
 
         <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-3" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
           <div className="flex items-center gap-2 rounded-xl px-2 py-2 text-left" style={{ background: "rgba(124,58,237,0.08)" }}>
-            <Users size={25} style={{ color: "#a78bfa" }} />
             <div>
               <p className="font-mono text-2xl font-black leading-none text-white">{fmt(gs.followers)}</p>
               <p className="mt-1 text-xs" style={{ color: "#aaaac5" }}>Seguidores</p>
             </div>
           </div>
           <div className="flex items-center gap-2 rounded-xl px-2 py-2 text-left" style={{ background: "rgba(245,158,11,0.07)" }}>
-            <Award size={25} style={{ color: "#f59e0b" }} />
             <div>
               <p className="font-mono text-2xl font-black leading-none text-white">{gs.reputation}%</p>
               <p className="mt-1 text-xs" style={{ color: "#aaaac5" }}>Popularidad</p>
@@ -2064,10 +2026,8 @@ function FirstContractCard({
   onSelect: () => void;
 }) {
   const info = CHANNELS[channel] ?? FALLBACK_CHANNEL;
-  const evaluation = getContractEvaluation(gs, channel);
-  const affinity = getChannelAffinity(channel, gs.streamerProfile?.streamerType ?? "", gs.streamerProfile?.personality ?? "");
+  const affinity = getContractAffinity(gs, channel);
   const metricColor = channel === "RENDER" ? "#ffffff" : info.accent;
-  const affinityStars = affinity.score >= 35 ? 5 : affinity.score >= 20 ? 4 : affinity.score >= 0 ? 3 : affinity.score >= -20 ? 2 : 1;
 
   return (
     <motion.button
@@ -2102,15 +2062,11 @@ function FirstContractCard({
         <span style={{ color: metricColor }}>Figura:</span>{" "}
         <strong className="font-medium text-white">{info.figure}</strong>
       </p>
-      <div className="mt-auto grid grid-cols-2 gap-2 border-t pt-4" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+      <div className="mt-auto border-t pt-4" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
         <div>
-          <div className="mb-2 text-xs font-medium" style={{ color: "#c8c8da" }}>Afinidad</div>
-          <ContractPips value={affinityStars} color={metricColor} />
-        </div>
-        <div>
-          <div className="mb-2 flex items-center gap-1.5 text-xs font-medium" style={{ color: "#c8c8da" }}><Target size={15} /> Alcance</div>
-          <ContractPips value={evaluation.reachPips} color={metricColor} />
-          <p className="mt-1.5 font-mono text-xs font-bold" style={{ color: metricColor }}>{Math.round(evaluation.personalizedReach)}%</p>
+          <div className="mb-2 flex items-center justify-between text-xs font-medium" style={{ color: "#c8c8da" }}><span>AFINIDAD</span><span className="font-mono font-bold" style={{ color: metricColor }}>{affinity}%</span></div>
+          <div className="h-2 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.12)" }}><div className="h-full rounded-full" style={{ width: `${affinity}%`, background: metricColor }} /></div>
+          <p className="mt-2 text-xs" style={{ color: "#c8c8da" }}>{getAffinityLabel(affinity)}</p>
         </div>
       </div>
     </motion.button>
@@ -2176,12 +2132,9 @@ function ScreenFirstContract({ gs, offers, onChoose }: { gs: GameState; offers: 
                   <Info size={19} style={{ color: "#a78bfa" }} />
                 </div>
                 <p className="mt-3 text-sm leading-6" style={{ color: "#c7c7d8" }}>
-                  La afinidad se calcula según tu tipo de streamer. El alcance muestra el público potencial de cada propuesta.
+                  La afinidad combina tu tipo de streamer y tu personalidad con las preferencias de cada canal.
                 </p>
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <div className="flex gap-2.5"><Info className="shrink-0" size={20} style={{ color: "#a78bfa" }} /><p className="text-sm leading-5" style={{ color: "#b9b9cd" }}>La personalidad queda guardada en tu perfil, sin bonificaciones ni penalizaciones por ahora.</p></div>
-                  <div className="flex gap-2.5"><Target className="shrink-0" size={20} style={{ color: "#f59e0b" }} /><p className="text-sm leading-5" style={{ color: "#b9b9cd" }}>Alcance indica el público potencial del canal.</p></div>
-                </div>
+                <div className="mt-4 flex gap-2.5"><Info className="shrink-0" size={20} style={{ color: "#a78bfa" }} /><p className="text-sm leading-5" style={{ color: "#b9b9cd" }}>Una afinidad alta refleja un mejor encaje y aumenta el peso de esa propuesta en el Mercado de Pases.</p></div>
               </section>
 
               <section className="flex flex-col justify-between rounded-2xl p-4" style={{ background: "rgba(9,13,29,0.86)", border: "1px solid rgba(124,58,237,0.24)" }}>
@@ -2285,7 +2238,7 @@ function ScreenStandardTransferMarket({ gs, onChoose, onNoOffers }: { gs: GameSt
               <h3 className="font-mono text-base font-bold uppercase tracking-[0.12em]" style={{ color: "#c084fc" }}>Tu carrera ya pesa en las ofertas</h3>
             </div>
             <p className="mt-3 text-sm leading-6" style={{ color: "#c7c7d8" }}>
-              Un canal afín ofrece mejor alcance. Tu popularidad, seguidores y desempeño determinan además qué canales están dispuestos a contratarte.
+              Una afinidad alta aumenta el peso de la propuesta. Tu popularidad, seguidores y desempeño determinan además qué canales están dispuestos a contratarte.
             </p>
           </section>
 
@@ -2325,7 +2278,7 @@ function ScreenTransferMarket({ gs, onChoose, onNoOffers }: { gs: GameState; onC
 function ScreenEvent({ gs, onChoose, onContinueAutomatic }: { gs: GameState; onChoose: (idx: number) => void; onContinueAutomatic: () => void }) {
   const ev = gs.currentEvents[gs.eventIndex];
   const ch = CHANNELS[gs.currentChannel] ?? FALLBACK_CHANNEL;
-  const evaluation = getContractEvaluation(gs, gs.currentChannel);
+  const affinity = getContractAffinity(gs, gs.currentChannel);
   const isSpecial = ev.title.startsWith("⚡");
   const isAutomatic = ev.type === "automatic";
 
@@ -2477,13 +2430,13 @@ function ScreenEvent({ gs, onChoose, onContinueAutomatic }: { gs: GameState; onC
                 </section>
 
                 <section className="rounded-2xl p-4" style={{ background: `${ch.color}0d`, border: `1px solid ${ch.color}55` }}>
-                  <p className="font-mono text-xs uppercase tracking-[0.16em]" style={{ color: "#9292aa" }}>Alcance de este contrato</p>
+                  <p className="font-mono text-xs uppercase tracking-[0.16em]" style={{ color: "#9292aa" }}>Afinidad del contrato</p>
                   <div className="mt-3 flex items-end justify-between gap-3">
-                    <p className="font-mono text-4xl font-black text-white">{Math.round(evaluation.personalizedReach)}%</p>
-                    <Target size={30} style={{ color: ch.accent }} />
+                    <p className="font-mono text-4xl font-black text-white">{affinity}%</p>
+                    <Info size={30} style={{ color: ch.accent }} />
                   </div>
-                  <div className="mt-3"><ContractPips value={evaluation.reachPips} color={ch.accent} /></div>
-                  <p className="mt-3 text-sm leading-5" style={{ color: "#9292aa" }}>Este valor amplifica tanto los buenos resultados como los errores.</p>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.12)" }}><div className="h-full rounded-full" style={{ width: `${affinity}%`, background: ch.accent }} /></div>
+                  <p className="mt-3 text-sm leading-5" style={{ color: "#9292aa" }}>{getAffinityLabel(affinity)}</p>
                 </section>
               </aside>
             </div>
@@ -2824,11 +2777,10 @@ export default function App() {
   
 
   const getEffectiveDelta = (delta: StatDelta, s: GameState): StatDelta => {
-    const evaluation = getContractEvaluation(s, s.currentChannel);
-    const scaled = scaleOutcomeByReach(
+    const scaled = scaleOutcomeByAffinity(
       delta.followers,
       delta.reputation === 0 ? undefined : delta.reputation,
-      evaluation.personalizedReach,
+      getContractAffinity(s, s.currentChannel),
     );
 
     return {

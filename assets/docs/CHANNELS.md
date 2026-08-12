@@ -34,9 +34,6 @@ Amigable.
 Remuneración:
 Alta
 
-Alcance:
-Muy Alto
-
 Exigencia:
 Alta
 
@@ -76,9 +73,6 @@ Descontracturado.
 
 Remuneración:
 Media
-
-Alcance:
-Muy Alto
 
 Exigencia:
 Media
@@ -120,9 +114,6 @@ Juegos.
 Remuneración:
 Baja
 
-Alcance:
-Alto
-
 Exigencia:
 Alta
 
@@ -158,9 +149,6 @@ Directo.
 Remuneración:
 Media
 
-Alcance:
-Medio
-
 Exigencia:
 Alta
 
@@ -193,9 +181,6 @@ Cultural.
 
 Remuneración:
 Media
-
-Alcance:
-Medio
 
 Exigencia:
 Alta
@@ -230,9 +215,6 @@ Competitivo.
 Remuneración:
 Media
 
-Alcance:
-Alto
-
 Exigencia:
 Alta
 
@@ -266,9 +248,6 @@ Festivalero.
 Remuneración:
 Media
 
-Alcance:
-Alto
-
 Exigencia:
 Media
 
@@ -301,9 +280,6 @@ Musical.
 
 Remuneración:
 Media
-
-Alcance:
-Medio
 
 Exigencia:
 Media

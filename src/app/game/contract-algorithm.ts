@@ -1,27 +1,4 @@
-export type StreamerType = "Reacción" | "Gamer" | "Política" | "Comediante" | "Deportes";
-
-export interface StreamerAffinityProfile {
-  streamerType: StreamerType;
-}
-
-export interface ChannelAffinityProfile {
-  baseReach: number;
-  preferredStreamerTypes?: StreamerType[];
-}
-
-export interface CompatibilityBreakdown {
-  streamerType: number | null;
-  total: number;
-}
-
-export interface ContractEvaluation {
-  compatibility: CompatibilityBreakdown;
-  personalizedReach: number;
-  reachPips: number;
-  exposureMultiplier: number;
-}
-
-export interface ReachScaledOutcome {
+export interface AffinityScaledOutcome {
   followers: number;
   popularity: number;
   multiplier: number;
@@ -42,74 +19,17 @@ function roundOneDecimal(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
-/** Los tipos cercanos conservan compatibilidad parcial. */
-export function calculateStreamerTypeCompatibility(
-  streamerType: StreamerType,
-  preferredTypes?: StreamerType[],
-): number | null {
-  if (!preferredTypes?.length) return null;
-  if (preferredTypes.includes(streamerType)) return 100;
-
-  return Math.max(...preferredTypes.map((preferredType) => {
-    const pair = new Set<StreamerType>([streamerType, preferredType]);
-    if (pair.has("Reacción") && pair.has("Gamer")) return 60;
-    if (pair.has("Reacción") && pair.has("Política")) return 35;
-    return 10;
-  }));
-}
-
-/**
- * La afinidad de contrato depende solamente del tipo de streamer. La personalidad
- * se guarda en el perfil, pero todavía no modifica ningún cálculo.
- */
-export function calculateCompatibility(
-  streamer: StreamerAffinityProfile,
-  channel: ChannelAffinityProfile,
-): CompatibilityBreakdown {
-  const streamerType = calculateStreamerTypeCompatibility(streamer.streamerType, channel.preferredStreamerTypes);
-
-  return {
-    streamerType,
-    total: streamerType ?? 100,
-  };
-}
-
-export function reachToPips(reach: number): number {
-  return clamp(Math.round(clamp(reach, 0, 100) / 20), 1, 5);
-}
-
-export function calculateExposureMultiplier(reach: number): number {
-  return roundOneDecimal(0.6 + 0.8 * (clamp(reach, 0, 100) / 100));
-}
-
-export function evaluateContract(
-  streamer: StreamerAffinityProfile,
-  channel: ChannelAffinityProfile,
-): ContractEvaluation {
-  const compatibility = calculateCompatibility(streamer, channel);
-  const baseReach = clamp(channel.baseReach, 0, 100);
-  const personalizedReach = roundOneDecimal(
-    baseReach * (0.25 + 0.75 * (compatibility.total / 100)),
-  );
-
-  return {
-    compatibility,
-    personalizedReach,
-    reachPips: reachToPips(personalizedReach),
-    exposureMultiplier: calculateExposureMultiplier(personalizedReach),
-  };
-}
-
-export function scaleOutcomeByReach(
+export function scaleOutcomeByAffinity(
   followers: number,
   popularity: number | undefined,
-  reach: number,
-): ReachScaledOutcome {
-  const multiplier = calculateExposureMultiplier(reach);
+  affinity: number,
+): AffinityScaledOutcome {
+  const safeAffinity = clamp(affinity, 0, 100);
+  const multiplier = roundOneDecimal(0.6 + 0.8 * (safeAffinity / 100));
   const scaledFollowers = Math.round(followers * multiplier);
   const derivedPopularity = followers === 0
     ? 0
-    : Math.sign(followers) * Math.max(1, Math.round(1 + 2 * (clamp(reach, 0, 100) / 100)));
+    : Math.sign(followers) * Math.max(1, Math.round(1 + 2 * (safeAffinity / 100)));
   const scaledPopularity = popularity === undefined
     ? derivedPopularity
     : Math.round(popularity * multiplier);
