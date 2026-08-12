@@ -721,14 +721,14 @@ const EVENTS: Record<Channel, GameEvent[]> = {
     },
     {
       title: "Hot Take Deportivo",
-      description: "ORTERIX organiza un panel donde cada uno dice su opinión más polémica sobre deporte. Todos miran.",
+      description: "'Bajen un Cambio' organiza un panel donde cada uno dice su opinión más polémica sobre deporte. Todos miran.",
       options: [
         { text: "El hot take más arriesgado que tenés", detail: "Decir lo que nadie se anima.", successChance: 0.44,
           success: { followers: 5000, reputation: 4, message: "Tu opinión explotó en redes. Mitad te odia, mitad te adora. Ambos te siguen." },
           failure: { followers: -2000, reputation: 0, message: "La opinión cayó fatal. Trending topic por las razones equivocadas." } },
         { text: "Opinión fuerte pero con respaldo", detail: "Polémica con argumentos.", successChance: 0.67,
           success: { followers: 1000, reputation: 2, message: "Posición sólida. La audiencia te tomó en serio y siguió el debate." },
-          failure: { followers: -2000, reputation: 0, message: "Quedó como una opinión a medias. No convenció a nadie." } },
+          failure: { followers: -2000, reputation: 0, message: "Quedaste como un tibio. No convenció a nadie." } },
       ],
     },
     {
