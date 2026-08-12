@@ -47,6 +47,12 @@ Tipo de eventos:
 - Invitados
 - Especiales
 
+TIPO_FAVORECIDO: Reaccion, Deportes, Comediante
+PERSONALIDAD_FAVORECIDA: Picante, Chill, Carismatico
+
+TIPO_DESFAVORECIDO: Gamer, Politica
+PERSONALIDAD_DESFAVORECIDA: Sesudo
+
 ---
 
 # RUZU TV
@@ -83,6 +89,12 @@ Tipo de eventos:
 - Redes Sociales
 - Invitados
 
+TIPO_FAVORECIDO: Reaccion, Comediante
+PERSONALIDAD_FAVORECIDA: Picante, Chill, Carismatico
+
+TIPO_DESFAVORECIDO: Gamer, Politica, Deportes
+PERSONALIDAD_DESFAVORECIDA: Sesudo
+
 ---
 
 # RENDER
@@ -117,6 +129,11 @@ Alta
 Evento exclusivo:
 Cambio de dueños.
 
+TIPO_FAVORECIDO: Reaccion, Comediante, Politica
+PERSONALIDAD_FAVORECIDA: Sesudo, Chill, Carismatico
+
+TIPO_DESFAVORECIDO: Gamer, Deportes
+PERSONALIDAD_DESFAVORECIDA: Picante
 ---
 
 # CARANCHO
@@ -146,6 +163,12 @@ Medio
 
 Exigencia:
 Alta
+
+TIPO_FAVORECIDO: Politica, Reaccion
+PERSONALIDAD_FAVORECIDA: Sesudo, Chill, Picante
+
+TIPO_DESFAVORECIDO: Gamer, Comediante, Deportes
+PERSONALIDAD_DESFAVORECIDA: Sesudo
 
 ---
 
@@ -177,6 +200,12 @@ Medio
 Exigencia:
 Alta
 
+TIPO_FAVORECIDO: Reaccion, Politica, Comediante
+PERSONALIDAD_FAVORECIDA: Sesudo, Carismatico
+
+TIPO_DESFAVORECIDO: Gamer, Deportes
+PERSONALIDAD_DESFAVORECIDA: Picante, Chill
+
 ---
 
 # ASS
@@ -206,6 +235,12 @@ Alto
 
 Exigencia:
 Alta
+
+TIPO_FAVORECIDO: Reaccion, Deportes
+PERSONALIDAD_FAVORECIDA: Picante, Chill, Carismatico
+
+TIPO_DESFAVORECIDO: Gamer, Politica, Comediante
+PERSONALIDAD_DESFAVORECIDA: Sesudo
 
 ---
 
@@ -237,6 +272,12 @@ Alto
 Exigencia:
 Media
 
+TIPO_FAVORECIDO: Reaccion, Deportes, Gamer
+PERSONALIDAD_FAVORECIDA: Picante, Chill, Carismatico
+
+TIPO_DESFAVORECIDO: Politica, Comediante
+PERSONALIDAD_DESFAVORECIDA: Sesudo
+
 ---
 
 # FUTUPOP
@@ -266,3 +307,9 @@ Medio
 
 Exigencia:
 Media
+
+TIPO_FAVORECIDO: Reaccion, Politica
+PERSONALIDAD_FAVORECIDA: Sesudo, Chill
+
+TIPO_DESFAVORECIDO: Gamer, Deportes, Comediante
+PERSONALIDAD_DESFAVORECIDA: Picante, Carismatico

@@ -1,4 +1,4 @@
-export type StreamerType = "Reacción" | "Gamer" | "Opinión Política";
+export type StreamerType = "Reacción" | "Gamer" | "Política" | "Comediante" | "Deportes";
 
 export interface StreamerAffinityProfile {
   streamerType: StreamerType;
@@ -53,7 +53,7 @@ export function calculateStreamerTypeCompatibility(
   return Math.max(...preferredTypes.map((preferredType) => {
     const pair = new Set<StreamerType>([streamerType, preferredType]);
     if (pair.has("Reacción") && pair.has("Gamer")) return 60;
-    if (pair.has("Reacción") && pair.has("Opinión Política")) return 35;
+    if (pair.has("Reacción") && pair.has("Política")) return 35;
     return 10;
   }));
 }

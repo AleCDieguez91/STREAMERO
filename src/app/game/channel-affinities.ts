@@ -1,29 +1,93 @@
-import {
-  evaluateContract,
-  type ChannelAffinityProfile,
-  type ContractEvaluation,
-  type StreamerAffinityProfile,
-} from "./contract-algorithm";
+import channelsMarkdown from "../../../assets/docs/CHANNELS.md?raw";
 
 export type ChannelAffinityId =
   | "ORTERIX" | "ALGA" | "ASS" | "RUZU TV"
   | "RENDER" | "CARANCHO" | "QUERATINA" | "FUTUPOP";
 
-// Configuración de alcance y tipo de streamer preferido de cada canal.
-export const CHANNEL_AFFINITIES: Record<ChannelAffinityId, ChannelAffinityProfile> = {
-  ORTERIX: { baseReach: 80, preferredStreamerTypes: ["Reacción", "Gamer"] },
-  ALGA: { baseReach: 80, preferredStreamerTypes: ["Reacción"] },
-  ASS: { baseReach: 60, preferredStreamerTypes: ["Reacción", "Gamer"] },
-  "RUZU TV": { baseReach: 60, preferredStreamerTypes: ["Reacción"] },
-  RENDER: { baseReach: 80, preferredStreamerTypes: ["Opinión Política"] },
-  CARANCHO: { baseReach: 60, preferredStreamerTypes: ["Opinión Política"] },
-  QUERATINA: { baseReach: 80, preferredStreamerTypes: ["Opinión Política"] },
-  FUTUPOP: { baseReach: 60, preferredStreamerTypes: ["Reacción"] },
-};
+export type AffinityMatch = "favored" | "neutral" | "disfavored";
 
-export function evaluateChannelForStreamer(
-  streamer: StreamerAffinityProfile,
-  channel: ChannelAffinityId,
-): ContractEvaluation {
-  return evaluateContract(streamer, CHANNEL_AFFINITIES[channel]);
+export interface ChannelAffinityProfile {
+  favoredTypes: string[];
+  disfavoredTypes: string[];
+  favoredPersonalities: string[];
+  disfavoredPersonalities: string[];
+}
+
+export interface ChannelAffinityResult {
+  score: number;
+  typeMatch: AffinityMatch;
+  personalityMatch: AffinityMatch;
+}
+
+function readList(section: string, property: string): string[] {
+  const line = section.match(new RegExp(`^${property}:\\s*(.+)$`, "mi"));
+  return line ? line[1].split(",").map((value) => value.trim()).filter(Boolean) : [];
+}
+
+/** Lee las afinidades declaradas en CHANNELS.md, sin duplicarlas en TypeScript. */
+export function parseChannelAffinities(markdown: string): Partial<Record<ChannelAffinityId, ChannelAffinityProfile>> {
+  const sections = markdown.split(/(?=^# )/m);
+
+  return sections.reduce<Partial<Record<ChannelAffinityId, ChannelAffinityProfile>>>((channels, section) => {
+    const name = section.match(/^#\s+(.+)$/m)?.[1].trim() as ChannelAffinityId | undefined;
+    if (!name || !["ORTERIX", "ALGA", "ASS", "RUZU TV", "RENDER", "CARANCHO", "QUERATINA", "FUTUPOP"].includes(name)) return channels;
+
+    channels[name] = {
+      favoredTypes: readList(section, "TIPO_FAVORECIDO"),
+      disfavoredTypes: readList(section, "TIPO_DESFAVORECIDO"),
+      favoredPersonalities: readList(section, "PERSONALIDAD_FAVORECIDA"),
+      disfavoredPersonalities: readList(section, "PERSONALIDAD_DESFAVORECIDA"),
+    };
+    return channels;
+  }, {});
+}
+
+export const CHANNEL_AFFINITIES = parseChannelAffinities(channelsMarkdown);
+
+function normalize(value: string): string {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, "").replace("opinionpolitica", "politica");
+}
+
+function getMatch(value: string, favored: string[], disfavored: string[]): AffinityMatch {
+  const normalizedValue = normalize(value);
+  if (favored.some((candidate) => normalize(candidate) === normalizedValue)) return "favored";
+  if (disfavored.some((candidate) => normalize(candidate) === normalizedValue)) return "disfavored";
+  return "neutral";
+}
+
+export function calculateChannelAffinity(
+  channel: ChannelAffinityProfile | undefined,
+  streamerType: string,
+  personality: string,
+): ChannelAffinityResult {
+  const typeMatch = getMatch(streamerType, channel?.favoredTypes ?? [], channel?.disfavoredTypes ?? []);
+  const personalityMatch = getMatch(personality, channel?.favoredPersonalities ?? [], channel?.disfavoredPersonalities ?? []);
+  const score = (typeMatch === "favored" ? 20 : typeMatch === "disfavored" ? -20 : 0)
+    + (personalityMatch === "favored" ? 15 : personalityMatch === "disfavored" ? -15 : 0);
+
+  return { score, typeMatch, personalityMatch };
+}
+
+export function getChannelAffinity(channel: ChannelAffinityId, streamerType: string, personality: string): ChannelAffinityResult {
+  return calculateChannelAffinity(CHANNEL_AFFINITIES[channel], streamerType, personality);
+}
+
+export function getAffinityReachModifier(score: number): number {
+  if (score >= 35) return 0.20;
+  if (score >= 20) return 0.12;
+  if (score >= 5) return 0.04;
+  if (score <= -35) return -0.15;
+  if (score <= -20) return -0.10;
+  if (score <= -15) return -0.07;
+  return 0;
+}
+
+export function getAffinityOfferWeight(score: number): number {
+  if (score >= 35) return 8;
+  if (score >= 20) return 5;
+  if (score >= 5) return 3;
+  if (score <= -35) return 0.25;
+  if (score <= -20) return 0.5;
+  if (score <= -15) return 1;
+  return 2;
 }

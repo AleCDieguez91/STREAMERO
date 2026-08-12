@@ -3,14 +3,12 @@ import { motion, AnimatePresence } from "motion/react";
 import { Award, CheckCircle2, Info, Rocket, Target, Users } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group";
 import {
-  calculateChannelInterest,
-  getInterestThreshold,
   scaleOutcomeByReach,
   type ContractEvaluation,
   type StreamerAffinityProfile,
   type StreamerType,
 } from "./game/contract-algorithm";
-import { evaluateChannelForStreamer } from "./game/channel-affinities";
+import { calculateChannelAffinity, getAffinityOfferWeight, getAffinityReachModifier, getChannelAffinity } from "./game/channel-affinities";
 import algaLogo from "../../assets/logos/alga.png";
 import assLogo from "../../assets/logos/ass.png";
 import caranchoLogo from "../../assets/logos/carancho.png";
@@ -278,6 +276,7 @@ interface GameState {
   recentPerformance: number;
   contractPerformanceTotal: number;
   contractPerformancePeriods: number;
+  currentChannelAffinity: number;
 }
 
 const EVENTS_PER_SEASON = 4;
@@ -416,7 +415,18 @@ function toStreamerAffinity(profile: StreamerProfile | null): StreamerAffinityPr
 }
 
 function getContractEvaluation(gs: GameState, channel: Channel): ContractEvaluation {
-  return evaluateChannelForStreamer(toStreamerAffinity(gs.streamerProfile), channel);
+  const affinity = channel === gs.currentChannel
+    ? gs.currentChannelAffinity
+    : gs.streamerProfile
+      ? getChannelAffinity(channel, gs.streamerProfile.streamerType, gs.streamerProfile.personality).score
+      : 0;
+  const personalizedReach = (CHANNELS[channel] ?? FALLBACK_CHANNEL).reach * 20 * (1 + getAffinityReachModifier(affinity));
+  return {
+    compatibility: { streamerType: null, total: affinity },
+    personalizedReach,
+    reachPips: Math.max(1, Math.min(5, Math.round(personalizedReach / 20))),
+    exposureMultiplier: 0.6 + 0.8 * (Math.max(0, Math.min(100, personalizedReach)) / 100),
+  };
 }
 
 function updateRecentPerformance(gs: GameState, periodScore: number) {
@@ -1424,15 +1434,23 @@ function pickEvents(channel: Channel, count: number, renderSold = false, usedEve
   return [...selected, forcedLastEvent];
 }
 
-function buildOffers(current: Channel, isFirst: boolean, renderSold = false, excludedChannels: Channel[] = []): Channel[] {
-  if (isFirst) {
-    return shuffle(ALL_CHANNELS.filter((channel) => !(renderSold && channel === "RENDER") && !excludedChannels.includes(channel))).slice(0, 4);
+function pickWeightedChannels(channels: Channel[], profile: StreamerProfile | null, count: number): Channel[] {
+  const pool = [...channels];
+  const picked: Channel[] = [];
+  while (pool.length && picked.length < count) {
+    const weights = pool.map((channel) => getAffinityOfferWeight(profile ? getChannelAffinity(channel, profile.streamerType, profile.personality).score : 0));
+    let cursor = Math.random() * weights.reduce((total, weight) => total + weight, 0);
+    const index = weights.findIndex((weight) => (cursor -= weight) <= 0);
+    picked.push(pool.splice(index < 0 ? pool.length - 1 : index, 1)[0]);
   }
+  return picked;
+}
 
+function buildOffers(current: Channel, isFirst: boolean, profile: StreamerProfile | null, renderSold = false, excludedChannels: Channel[] = []): Channel[] {
   const availableChannels = ALL_CHANNELS.filter((channel) => !(renderSold && channel === "RENDER") && !excludedChannels.includes(channel));
-  const others = shuffle(availableChannels.filter((c) => c !== current));
-  const candidates = [current, ...others.slice(0, 3)];
-  return candidates.filter((channel) => !(renderSold && channel === "RENDER") && !excludedChannels.includes(channel));
+  if (isFirst) return pickWeightedChannels(availableChannels, profile, 4);
+  return [current, ...pickWeightedChannels(availableChannels.filter((channel) => channel !== current), profile, 3)]
+    .filter((channel) => availableChannels.includes(channel));
 }
 
 function getFinalRating(followers: number) {
@@ -1485,6 +1503,7 @@ const INIT: GameState = {
   recentPerformance: 50,
   contractPerformanceTotal: 0,
   contractPerformancePeriods: 0,
+  currentChannelAffinity: 0,
 };
 
 // ─── UI Primitives ────────────────────────────────────────────────────────────
@@ -1700,13 +1719,13 @@ function ScreenNaming({ onConfirm }: { onConfirm: (name: string, profile: Stream
                 <RadioGroup
                   value={streamerType ?? ""}
                   onValueChange={(value) => setStreamerType(value as StreamerType)}
-                  className="grid gap-2 sm:grid-cols-3"
+                  className="grid gap-2 sm:grid-cols-6"
                   aria-label="Tipo de streamer"
                 >
-                  {(["Reacción", "Gamer", "Opinión Política"] as StreamerType[]).map((type) => {
+                  {(["Reacción", "Gamer", "Política", "Comediante", "Deportes"] as StreamerType[]).map((type, index) => {
                     const id = `streamer-type-${type.replace(/\s/g, "-").toLowerCase()}`;
                     return (
-                      <label key={type} htmlFor={id} className="cursor-pointer">
+                      <label key={type} htmlFor={id} className={`cursor-pointer ${index < 3 ? "sm:col-span-2" : "sm:col-span-3"}`}>
                         <RadioGroupItem id={id} value={type} className="peer sr-only" />
                         <div className="rounded-xl px-3 py-3 text-center text-sm font-semibold transition-all duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-purple-400"
                           style={{ background: streamerType === type ? "rgba(124,58,237,0.24)" : "rgba(7,7,14,0.56)", border: streamerType === type ? "1px solid #a78bfa" : "1px solid rgba(255,255,255,0.08)", color: streamerType === type ? "#e9d5ff" : "#8585ad" }}>
@@ -1962,7 +1981,7 @@ function CareerSidebar({ gs }: { gs: GameState }) {
   const profile = gs.streamerProfile;
   const streamerTypeColor = profile?.streamerType === "Gamer"
     ? "#38bdf8"
-    : profile?.streamerType === "Opinión Política"
+    : profile?.streamerType === "Política"
       ? "#fb2c68"
       : "#c084fc";
 
@@ -2108,7 +2127,9 @@ function FirstContractCard({
 }) {
   const info = CHANNELS[channel] ?? FALLBACK_CHANNEL;
   const evaluation = getContractEvaluation(gs, channel);
+  const affinity = getChannelAffinity(channel, gs.streamerProfile?.streamerType ?? "", gs.streamerProfile?.personality ?? "");
   const metricColor = channel === "RENDER" ? "#ffffff" : info.accent;
+  const affinityStars = affinity.score >= 35 ? 5 : affinity.score >= 20 ? 4 : affinity.score >= 0 ? 3 : affinity.score >= -20 ? 2 : 1;
 
   return (
     <motion.button
@@ -2143,11 +2164,10 @@ function FirstContractCard({
         <span style={{ color: metricColor }}>Figura:</span>{" "}
         <strong className="font-medium text-white">{info.figure}</strong>
       </p>
-
       <div className="mt-auto grid grid-cols-2 gap-2 border-t pt-4" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
         <div>
-          <div className="mb-2 text-xs font-medium" style={{ color: "#c8c8da" }}>Afinidad de tipo</div>
-          <ContractPips value={Math.round(evaluation.compatibility.total / 20)} color={metricColor} />
+          <div className="mb-2 text-xs font-medium" style={{ color: "#c8c8da" }}>Afinidad</div>
+          <ContractPips value={affinityStars} color={metricColor} />
         </div>
         <div>
           <div className="mb-2 flex items-center gap-1.5 text-xs font-medium" style={{ color: "#c8c8da" }}><Target size={15} /> Alcance</div>
@@ -2289,7 +2309,7 @@ function ScreenNoTransferOffers({ gs, onContinue }: { gs: GameState; onContinue:
 }
 
 function ScreenStandardTransferMarket({ gs, onChoose, onNoOffers }: { gs: GameState; onChoose: (ch: Channel) => void; onNoOffers: () => void }) {
-  const [offers] = useState<Channel[]>(() => buildOffers(gs.currentChannel, gs.isFirstMarket, gs.renderSold, gs.excludedChannels));
+  const [offers] = useState<Channel[]>(() => buildOffers(gs.currentChannel, gs.isFirstMarket, gs.streamerProfile, gs.renderSold, gs.excludedChannels));
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const selectedInfo = selectedChannel ? CHANNELS[selectedChannel] ?? FALLBACK_CHANNEL : null;
   const isRenewal = selectedChannel === gs.currentChannel;
@@ -2355,7 +2375,7 @@ function ScreenStandardTransferMarket({ gs, onChoose, onNoOffers }: { gs: GameSt
 function ScreenTransferMarket({ gs, onChoose, onNoOffers }: { gs: GameState; onChoose: (ch: Channel) => void; onNoOffers: () => void }) {
   // Lfunction ScreenTransferMarketa primera contratación conserva sus textos de introducción. Los mercados siguientes
   // usan las mismas tarjetas y confirmación, pero reciben ofertas calculadas con la carrera.
-  const [firstOffers] = useState<Channel[]>(() => buildOffers(gs.currentChannel, gs.isFirstMarket, gs.renderSold, gs.excludedChannels));
+  const [firstOffers] = useState<Channel[]>(() => buildOffers(gs.currentChannel, gs.isFirstMarket, gs.streamerProfile, gs.renderSold, gs.excludedChannels));
 
   if (gs.isFirstMarket) {
     return <ScreenFirstContract gs={gs} offers={firstOffers} onChoose={onChoose} />;
@@ -2942,6 +2962,9 @@ export default function App() {
       return {
         ...s,
         currentChannel: channel,
+        currentChannelAffinity: s.streamerProfile
+          ? getChannelAffinity(channel, s.streamerProfile.streamerType, s.streamerProfile.personality).score
+          : 0,
         phase: "event",
         eventIndex: 0,
         currentEvents: events,
