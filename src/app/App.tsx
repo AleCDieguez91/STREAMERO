@@ -184,7 +184,7 @@ function isEligibleForMartinFierroOro(gs: GameState): boolean {
 
   return gs.reputation >= 75
     && gs.isVerified
-    && gs.excludedChannels.length === 0
+    && gs.cancellationCount === 0
     && (individualAwardCount >= 3 || awardTypes.size >= 3);
 }
 
@@ -311,6 +311,7 @@ interface GameState {
   peleadaOutcome: StatDelta | null;
   usedEventKeys: string[];
   excludedChannels: Channel[];
+  cancellationCount: number;
   isVerified: boolean;
   pendingVerificationUnlock: boolean;
   awardedAutomaticPrizes: AwardedPrize[];
@@ -596,7 +597,9 @@ function parseEventsFromMarkdown(markdown: string): GameEvent[] {
   return sections.flatMap((section) => {
     const normalized = section.trim();
     if (!normalized) return [];
-    const lines = normalized.split(/\r?\n/).map((l) => l.trim());
+    // Normalizamos diacríticos para que los encabezados del Markdown funcionen
+    // igual con archivos UTF-8 y con contenido que haya pasado por una conversión.
+    const lines = normalized.split(/\r?\n/).map((l) => l.trim().normalize("NFD").replace(/\p{Diacritic}/gu, ""));
     const id = lines.find((line) => /^EVENTO:/i.test(line))?.replace(/^EVENTO:\s*/i, "").trim();
 
     const title = lines.find((line) => /^T[ÍI]TULO:/i.test(line))?.replace(/^T[ÍI]TULO:\s*/i, "")?.trim() ?? "Evento";
@@ -627,6 +630,7 @@ function parseEventsFromMarkdown(markdown: string): GameEvent[] {
     const options: EventOption[] = optionBlocks.map((block) => {
       const bLines = block.split(/\r?\n/).map((l) => l.trim());
       const header = bLines[0] ?? "";
+      const optionTextOnNextLine = bLines.slice(1).find((line) => line && !/^(SUBTITULO|PROBABILIDAD|SALE (BIEN|MAL)|CONSECUENCIAS):/i.test(line)) ?? "";
       const rawText = header.replace(/^OPCI(?:ÓN|ON):?/i, "").trim();
       const text = normalizeOptionText(rawText) || "Opción";
       const subtitle = (bLines.find((l) => /^SUBT[ÍI]TULO:/i.test(l)) ?? "").replace(/^SUBT[ÍI]TULO:\s*/i, "").trim();
@@ -646,7 +650,7 @@ function parseEventsFromMarkdown(markdown: string): GameEvent[] {
       };
 
       return {
-        text: text,
+        text: normalizeOptionText(text) === "Opcion" ? optionTextOnNextLine : text,
         detail: subtitle,
         successChance: isNaN(prob) ? 0.5 : prob,
         success: successObj,
@@ -1510,6 +1514,7 @@ const INIT: GameState = {
   peleadaOutcome: null,
   usedEventKeys: [],
   excludedChannels: [],
+  cancellationCount: 0,
   isVerified: false,
   pendingVerificationUnlock: false,
   awardedAutomaticPrizes: [],
@@ -3159,8 +3164,13 @@ export default function App() {
         // A channel that fires the player is never eligible again in this career.
         const excludedChannels = [...new Set([...s.excludedChannels, s.currentChannel])];
         const renderWasSold = s.lastResult.eventTitle.includes("RENDER FUE VENDIDO");
+        // La venta de RENDER termina el contrato, pero no es una cancelación del streamer.
+        const cancellationCount = s.cancellationCount + (renderWasSold ? 0 : 1);
         if (s.season >= SEASONS) {
-          return { ...s, careerHistory: hist, renderSold: s.renderSold || renderWasSold, excludedChannels, phase: "gameOver" };
+          const finalState = { ...s, careerHistory: hist, renderSold: s.renderSold || renderWasSold, excludedChannels, cancellationCount };
+          return isEligibleForMartinFierroOro(finalState)
+            ? { ...finalState, phase: "martinFierroOroNomination" }
+            : { ...finalState, phase: "gameOver" };
         }
         return {
           ...s,
@@ -3168,6 +3178,7 @@ export default function App() {
           careerHistory: hist,
           renderSold: s.renderSold || renderWasSold,
           excludedChannels,
+          cancellationCount,
           phase: "transferMarket",
           isFirstMarket: false,
         };
