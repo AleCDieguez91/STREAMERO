@@ -19,6 +19,13 @@ TIPO: ANUAL
 
 
 
+ID: MARTIN\_FIERRO\_ORO
+NOMBRE: Martín Fierro de Oro
+ICONO: martin_fierro_oro.png
+TIPO: ESPECIAL
+
+
+
 ID: FAJENSE\_DE\_MANOS
 
 NOMBRE: Fajense de Manos

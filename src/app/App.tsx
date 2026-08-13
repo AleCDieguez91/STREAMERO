@@ -96,6 +96,7 @@ function parsePrizesFromMarkdown(markdown: string): GamePrize[] {
 }
 
 const DOC_PREMIOS: GamePrize[] = parsePrizesFromMarkdown(premiosMd);
+const MARTIN_FIERRO_ORO_PRIZE_ID = "MARTIN_FIERRO_ORO";
 // Este premio ya cuenta con su asset en assets/premios. Aún no tiene entrada en
 // PREMIOS.md, así que se integra al mismo sistema sin modificar la documentación.
 const PELEADA_DEL_ANO_PRIZE: GamePrize = {
@@ -171,6 +172,22 @@ function getAwardIncrements(previousAwards: AwardedPrize[], nextAwards: AwardedP
   });
 }
 
+function isEligibleForMartinFierroOro(gs: GameState): boolean {
+  const validAwards = gs.awardedAutomaticPrizes.filter((award) => (
+    award.id !== "FAJENSE_DE_MANOS" && award.id !== MARTIN_FIERRO_ORO_PRIZE_ID
+  ));
+  const individualAwardCount = validAwards.reduce((total, award) => total + award.count, 0);
+  const awardTypes = new Set(validAwards.flatMap((award) => {
+    const type = DOC_PREMIOS.find((prize) => prize.id === award.id)?.type;
+    return type ? [type] : [];
+  }));
+
+  return gs.reputation >= 75
+    && gs.isVerified
+    && gs.excludedChannels.length === 0
+    && (individualAwardCount >= 3 || awardTypes.size >= 3);
+}
+
 function awardSpecialPrizesForSuccessfulEvent(
   eventId: string | undefined,
   currentAwards: AwardedPrize[],
@@ -194,6 +211,9 @@ type Phase =
   | "peleadaIntro"
   | "peleadaGame"
   | "peleadaResult"
+  | "martinFierroOroNomination"
+  | "martinFierroOroGame"
+  | "martinFierroOroResult"
   | "gameOver";
 
 type AvatarChoice = "avatar-a" | "avatar-b";
@@ -299,6 +319,7 @@ interface GameState {
   awardsSeasonRevealed: number[];
   awardsSeasonCompleted: boolean;
   awardsSeasonEndedByEmpty: boolean;
+  martinFierroOroWon: boolean | null;
   recentPerformance: number;
   contractPerformanceTotal: number;
   contractPerformancePeriods: number;
@@ -1497,6 +1518,7 @@ const INIT: GameState = {
   awardsSeasonRevealed: [],
   awardsSeasonCompleted: false,
   awardsSeasonEndedByEmpty: false,
+  martinFierroOroWon: null,
   recentPerformance: 50,
   contractPerformanceTotal: 0,
   contractPerformancePeriods: 0,
@@ -2821,6 +2843,71 @@ function ScreenAwardsSeason({ gs, onChoose }: { gs: GameState; onChoose: (index:
   );
 }
 
+function ScreenMartinFierroOroNomination({ gs, onContinue }: { gs: GameState; onContinue: () => void }) {
+  return (
+    <CareerScreenFrame gs={gs} progressCurrent={SEASONS} progressTotal={SEASONS} progressLabel="Final de carrera" accent="#fbbf24">
+      <motion.section initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="mx-auto flex min-h-[560px] max-w-3xl flex-col justify-center p-6 text-center sm:p-10">
+        <Award className="mx-auto" size={72} style={{ color: "#fbbf24", filter: "drop-shadow(0 0 20px rgba(251,191,36,0.6))" }} />
+        <p className="mt-7 font-mono text-xs font-bold uppercase tracking-[0.28em]" style={{ color: "#fde68a" }}>Reconocimiento final de carrera</p>
+        <h2 className="mt-5 font-black uppercase leading-none text-white" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(3.1rem, 8vw, 5.8rem)", textShadow: "0 0 28px rgba(251,191,36,0.34)" }}>Estás nominado al Martín Fierro de Oro</h2>
+        <p className="mx-auto mt-6 max-w-2xl text-lg leading-8" style={{ color: "#d4d4e3" }}>Tu carrera cumple todos los requisitos. Tenés un único giro para quedarte con el premio más importante.</p>
+        <motion.button onClick={onContinue} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="mx-auto mt-10 w-full max-w-md rounded-xl py-4 font-black uppercase tracking-wide" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.35rem", background: "linear-gradient(135deg, #d97706, #fbbf24)", color: "#1c1302", boxShadow: "0 0 28px rgba(251,191,36,0.38)" }}>
+          Ir a la ruleta <Rocket className="ml-2 inline" size={20} />
+        </motion.button>
+      </motion.section>
+    </CareerScreenFrame>
+  );
+}
+
+function ScreenMartinFierroOroGame({ gs, onComplete }: { gs: GameState; onComplete: (won: boolean) => void }) {
+  const [isSpinning, setIsSpinning] = useState(false);
+  const [rotation, setRotation] = useState(0);
+
+  const spin = () => {
+    if (isSpinning) return;
+    const won = Math.random() < 0.5;
+    const segment = won ? (Math.random() < 0.5 ? 0 : 2) : (Math.random() < 0.5 ? 1 : 3);
+    setIsSpinning(true);
+    // La flecha queda fija arriba: la rotación lleva el centro del segmento elegido a ella.
+    setRotation(1440 + 315 - segment * 90);
+    window.setTimeout(() => onComplete(won), 1800);
+  };
+
+  return (
+    <CareerScreenFrame gs={gs} progressCurrent={SEASONS} progressTotal={SEASONS} progressLabel="Final de carrera" accent="#fbbf24">
+      <motion.section initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="mx-auto flex min-h-[560px] max-w-2xl flex-col items-center justify-center p-6 text-center">
+        <p className="font-mono text-xs font-bold uppercase tracking-[0.28em]" style={{ color: "#fde68a" }}>Un único giro</p>
+        <h2 className="mt-4 font-black uppercase leading-none text-white" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(3rem, 8vw, 5rem)" }}>Ruleta de Oro</h2>
+        <div className="relative mt-9 h-72 w-72">
+          <span aria-hidden="true" className="absolute -top-5 left-1/2 z-10 -translate-x-1/2 text-4xl leading-none" style={{ color: "#fff7d6", textShadow: "0 0 10px rgba(251,191,36,0.8)" }}>▼</span>
+          <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-4 border-[#fde68a]" style={{ background: "conic-gradient(#fbbf24 0deg 90deg, #dc2626 90deg 180deg, #fbbf24 180deg 270deg, #dc2626 270deg 360deg)", boxShadow: "0 0 38px rgba(251,191,36,0.34)", transform: `rotate(${rotation}deg)`, transition: isSpinning ? "transform 1.8s cubic-bezier(0.16, 0.72, 0.12, 1)" : "none" }}>
+            <div className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-[#fde68a] bg-[#14111f] text-3xl">🏆</div>
+          </div>
+        </div>
+        <div className="mt-5 flex w-72 justify-between text-xs font-black uppercase tracking-wider"><span style={{ color: "#fef3c7" }}>Premio</span><span style={{ color: "#fca5a5" }}>Rojo</span><span style={{ color: "#fef3c7" }}>Premio</span><span style={{ color: "#fca5a5" }}>Rojo</span></div>
+        <motion.button type="button" onClick={spin} disabled={isSpinning} whileHover={!isSpinning ? { scale: 1.02 } : undefined} whileTap={!isSpinning ? { scale: 0.98 } : undefined} className="mt-9 w-full max-w-sm rounded-xl py-4 font-black uppercase tracking-wide disabled:cursor-not-allowed disabled:opacity-60" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.3rem", background: "linear-gradient(135deg, #d97706, #fbbf24)", color: "#1c1302" }}>
+          {isSpinning ? "Girando..." : "Girar la ruleta"}
+        </motion.button>
+      </motion.section>
+    </CareerScreenFrame>
+  );
+}
+
+function ScreenMartinFierroOroResult({ gs, onContinue }: { gs: GameState; onContinue: () => void }) {
+  const won = gs.martinFierroOroWon;
+  const color = won ? "#fbbf24" : "#ef4444";
+  return (
+    <CareerScreenFrame gs={gs} progressCurrent={SEASONS} progressTotal={SEASONS} progressLabel="Final de carrera" accent={color}>
+      <motion.section initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="mx-auto flex min-h-[540px] max-w-2xl flex-col items-center justify-center p-8 text-center">
+        <div className="text-7xl">{won ? "🏆" : "🔴"}</div>
+        <h2 className="mt-7 font-black uppercase leading-none text-white" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(3rem, 8vw, 5rem)" }}>{won ? "¡Ganaste el Martín Fierro de Oro!" : "No ganaste el Martín Fierro de Oro"}</h2>
+        <p className="mt-5 max-w-lg text-lg leading-7" style={{ color: "#c8c8d7" }}>{won ? "El premio ya forma parte de tu vitrina." : "La ruleta cayó en rojo. Tu carrera termina igual con todo lo que construiste."}</p>
+        <motion.button onClick={onContinue} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="mt-9 w-full max-w-sm rounded-xl py-4 font-black uppercase tracking-wide" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.3rem", background: `linear-gradient(135deg, ${color}, ${won ? "#d97706" : "#dc2626"})`, color: "#fff" }}>Ver final de carrera <Rocket className="ml-2 inline" size={20} /></motion.button>
+      </motion.section>
+    </CareerScreenFrame>
+  );
+}
+
 function ScreenGameOver({ gs }: { gs: GameState }) {
   const rating = getFinalRating(gs.followers);
   const finalChannel = CHANNELS[gs.currentChannel] ?? FALLBACK_CHANNEL;
@@ -3103,7 +3190,12 @@ export default function App() {
         awardsSeasonCompleted: false,
         awardsSeasonEndedByEmpty: false,
       };
-      if (s.season >= SEASONS) return { ...s, ...clearedAwardsSeason, careerHistory: hist, phase: "gameOver" };
+      if (s.season >= SEASONS) {
+        const finalState = { ...s, ...clearedAwardsSeason, careerHistory: hist };
+        return isEligibleForMartinFierroOro(finalState)
+          ? { ...finalState, phase: "martinFierroOroNomination" }
+          : { ...finalState, phase: "gameOver" };
+      }
 
       const nextSeason = s.season + 1;
       return { ...s, ...clearedAwardsSeason, season: nextSeason, careerHistory: hist, phase: "transferMarket", isFirstMarket: false };
@@ -3200,6 +3292,32 @@ export default function App() {
 
   const handlePeleadaResultContinue = useCallback(() => {
     setGs((s) => continueAfterSeason(s));
+  }, []);
+
+  const handleMartinFierroOroNominationContinue = useCallback(() => {
+    setGs((s) => ({ ...s, phase: "martinFierroOroGame" }));
+  }, []);
+
+  const handleMartinFierroOroComplete = useCallback((won: boolean) => {
+    setGs((s) => {
+      if (s.phase !== "martinFierroOroGame") return s;
+      if (!won) return { ...s, martinFierroOroWon: false, phase: "martinFierroOroResult" };
+
+      const prize = DOC_PREMIOS.find((entry) => entry.id === MARTIN_FIERRO_ORO_PRIZE_ID);
+      if (!prize) return { ...s, martinFierroOroWon: true, phase: "martinFierroOroResult" };
+      const nextAwards = awardPrize(s.awardedAutomaticPrizes, prize, s.currentChannel);
+      return {
+        ...s,
+        martinFierroOroWon: true,
+        phase: "martinFierroOroResult",
+        awardedAutomaticPrizes: nextAwards,
+        pendingPrizeUnlocks: [...s.pendingPrizeUnlocks, ...getAwardIncrements(s.awardedAutomaticPrizes, nextAwards)],
+      };
+    });
+  }, []);
+
+  const handleMartinFierroOroResultContinue = useCallback(() => {
+    setGs((s) => ({ ...s, phase: "gameOver" }));
   }, []);
 
   const handleAwardsSeasonChoose = useCallback((index: number) => {
@@ -3315,6 +3433,21 @@ export default function App() {
         {gs.phase === "peleadaResult" && (
           <motion.div key="peleada-result" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
             <ScreenPeleadaResult gs={gs} onContinue={handlePeleadaResultContinue} />
+          </motion.div>
+        )}
+        {gs.phase === "martinFierroOroNomination" && (
+          <motion.div key="martin-fierro-oro-nomination" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+            <ScreenMartinFierroOroNomination gs={gs} onContinue={handleMartinFierroOroNominationContinue} />
+          </motion.div>
+        )}
+        {gs.phase === "martinFierroOroGame" && (
+          <motion.div key="martin-fierro-oro-game" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+            <ScreenMartinFierroOroGame gs={gs} onComplete={handleMartinFierroOroComplete} />
+          </motion.div>
+        )}
+        {gs.phase === "martinFierroOroResult" && (
+          <motion.div key="martin-fierro-oro-result" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+            <ScreenMartinFierroOroResult gs={gs} onContinue={handleMartinFierroOroResultContinue} />
           </motion.div>
         )}
         {gs.phase === "gameOver" && (

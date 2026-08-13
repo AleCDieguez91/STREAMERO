@@ -38,7 +38,7 @@ OPCIÓN A: Seguir el informe
 SUBTÍTULO: "Ya que estamos en el baile..."
 PROBABILIDAD: 70%
 SALE BIEN: De la nada entra el Manzanero al estudio con birras y pucho, el informe queda opacado
-CONSECUENCIAS: +1k seguidores
+CONSECUENCIAS: +10k seguidores
 +4 reputación
 
 SALE MAL: Terminan revelando el romance clandestino de 2 conductores de la mañana
