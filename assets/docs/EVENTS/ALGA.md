@@ -224,3 +224,81 @@ SALE MAL: Muchos interpretan el silencio como una admisión.
 
 CONSECUENCIAS: -3k seguidores
 
+
+
+…
+
+
+
+EVENTO: ALGA\_006
+
+
+
+CANAL: ALGA
+
+
+
+TÍTULO: CONFLICTO SINDICAL
+
+
+
+DESCRIPCIÓN: El sindicato anuncia un paro general y los trabajadores de Alga discuten si adherirse. Producción te avisa que, si el programa sale al aire, va a tener que trabajar con personal reducido. Todos esperan tu decisión.
+
+
+
+OPCIÓN A: Adherís al paro.
+
+
+
+SUBTÍTULO: "Hoy no sale."
+
+
+
+PROBABILIDAD: 60%
+
+
+
+SALE BIEN: El equipo se mantiene unido y la audiencia respalda la decisión. El hashtag del programa se vuelve tendencia.
+
+
+
+CONSECUENCIAS: +4k seguidores +5 reputacion
+
+
+
+SALE MAL: Parte de la audiencia se queja por la falta de programa y algunos anunciantes expresan su molestia.
+
+
+
+CONSECUENCIAS: -1k seguidores -1 reputacion
+
+
+
+OPCIÓN B: Trabajás de todas formas.
+
+
+
+SUBTÍTULO: "El programa tiene que salir."
+
+
+
+PROBABILIDAD: 40%
+
+
+
+SALE BIEN: El programa sale con normalidad y aprovechás el contexto para hacer un especial sobre el conflicto sindical.
+
+
+
+CONSECUENCIAS: +3k seguidores +3 reputacion
+
+
+
+SALE MAL: Los trabajadores que adhirieron al paro te acusan de romper la medida de fuerza. El conflicto interno escala y termina en redes.
+
+
+
+CONSECUENCIAS: -5k seguidores -5 reputacion
+
+
+

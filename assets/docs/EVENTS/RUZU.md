@@ -69,5 +69,81 @@ CONSECUENCIAS: +3k seguidores +5 reputacion
 
 SALE MAL: Mumi termina llorando diciendo que puso mucho esfuerzo. Bognato te suspende una semana.
 
-CONSECUENCIAS: -3k seguidores -4 reputacion
+CONSECUENCIAS: -3k seguidores -4 reputación
+
+
+
+…
+
+
+
+EVENTO: RUZUTV\_003
+
+
+
+CANAL: RUZU TV
+
+
+
+TÍTULO: STRIKE
+
+
+
+DESCRIPCIÓN: Estás haciendo un directo y de fondo suena una canción con copyright. A los pocos minutos, la plataforma te manda una notificación: el contenido recibió un strike y existe riesgo de que el canal sea suspendido si vuelve a ocurrir.
+
+
+
+OPCIÓN A: Apelás el strike y defendés que el uso de la canción estaba justificado.
+
+
+
+SUBTÍTULO: "Nos vamos a defender."
+
+
+
+PROBABILIDAD: 45%
+
+
+
+SALE BIEN: La apelación prospera y la plataforma retira el strike. El clip de la pelea se viraliza y el público celebra la victoria.
+
+
+
+CONSECUENCIAS: +5k seguidores +1 reputacion
+
+
+
+SALE MAL: La plataforma rechaza la apelación. Ahora tenés un strike más y cualquier nuevo reclamo puede ser mucho más grave.
+
+
+
+CONSECUENCIAS: -3k seguidores -2 reputación
+
+
+
+OPCIÓN B: Aceptás el reclamo y eliminás el contenido afectado.
+
+
+
+SUBTÍTULO: "No arriesgamos el canal."
+
+
+
+PROBABILIDAD: 75%
+
+
+
+SALE BIEN: El problema queda limitado a ese contenido y el canal continúa funcionando con normalidad.
+
+
+
+CONSECUENCIAS: +2k seguidores +1 reputacion
+
+
+
+SALE MAL: El contenido eliminado era uno de los clips más vistos del canal. La comunidad se enfurece por haberlo perdido.
+
+
+
+CONSECUENCIAS: -2k seguidores -2 reputacion
 

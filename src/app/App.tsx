@@ -9,6 +9,7 @@ import assLogo from "../../assets/logos/ass.png";
 import caranchoLogo from "../../assets/logos/carancho.png";
 import queratinaLogo from "../../assets/logos/queratina.png";
 import futupopLogo from "../../assets/logos/futupop.png";
+import boxingGloveImage from "../../Enemy_attack.png";
 import orterixLogo from "../../assets/logos/orterix.png";
 import renderLogo from "../../assets/logos/render.png";
 import ruzuLogo from "../../assets/logos/ruzu.png";
@@ -18,6 +19,8 @@ import orterixEventsMd from "../../assets/docs/EVENTS/ORTERIX.md?raw";
 import renderEventsMd from "../../assets/docs/EVENTS/RENDER.md?raw";
 import ruzuEventsMd from "../../assets/docs/EVENTS/RUZU.md?raw";
 import futupopEventsMd from "../../assets/docs/EVENTS/FUTUPOP.md?raw";
+import streamerEventsMd from "../../assets/docs/EVENTS/STREAMER.md?raw";
+import peleadaRivalsMd from "../../assets/docs/LISTS/PELEADA_RIVALES.md?raw";
 import premiosMd from "../../assets/docs/LISTS/PREMIOS.md?raw";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -93,6 +96,15 @@ function parsePrizesFromMarkdown(markdown: string): GamePrize[] {
 }
 
 const DOC_PREMIOS: GamePrize[] = parsePrizesFromMarkdown(premiosMd);
+// Este premio ya cuenta con su asset en assets/premios. Aún no tiene entrada en
+// PREMIOS.md, así que se integra al mismo sistema sin modificar la documentación.
+const PELEADA_DEL_ANO_PRIZE: GamePrize = {
+  id: "LA_PELEADA_DEL_ANO",
+  name: "La Peleada del Año",
+  type: "ESPECIAL",
+  icon: "peleada_del_año.png",
+  accumulable: false,
+};
 const PRIZE_ASSET_IMPORTS = import.meta.glob("../../assets/premios/*.png", { eager: true, import: "default" }) as Record<string, string>;
 const AWARDS_SEASON_PRIZE_IDS = ["MARTIN_FIERRO_DIGITAL", "PREMIOS_IDOLO", "COSCU_ARMY_AWARDS"] as const;
 type AwardsSeasonPrizeId = typeof AWARDS_SEASON_PRIZE_IDS[number];
@@ -179,6 +191,9 @@ type Phase =
   | "eventResult"
   | "seasonSummary"
   | "awardsSeason"
+  | "peleadaIntro"
+  | "peleadaGame"
+  | "peleadaResult"
   | "gameOver";
 
 type AvatarChoice = "avatar-a" | "avatar-b";
@@ -264,6 +279,16 @@ interface GameState {
   isFirstMarket: boolean;
   renderSold: boolean;
   usedFajenseRivals: string[];
+  hasWonFajense: boolean;
+  hasPlayedPeleada: boolean;
+  peleadaEvent: GameEvent | null;
+  peleadaRival: string | null;
+  peleadaBoard: ("success" | "hit")[];
+  peleadaRevealed: number[];
+  peleadaSuccesses: number;
+  peleadaHits: number;
+  peleadaWon: boolean | null;
+  peleadaOutcome: StatDelta | null;
   usedEventKeys: string[];
   excludedChannels: Channel[];
   isVerified: boolean;
@@ -649,8 +674,33 @@ function parseEventsFromMarkdown(markdown: string): GameEvent[] {
   });
 }
 
+function parsePeleadaResultFromMarkdown(markdown: string, result: "VICTORIA" | "DERROTA"): StatDelta {
+  const lines = markdown.replace(/\\/g, "").split(/\r?\n/).map((line) => line.trim());
+  const headerIndex = lines.findIndex((line) => line.toUpperCase() === `RESULTADO_${result}:`);
+  if (headerIndex < 0) return { followers: 0, reputation: 0, message: "" };
+  const rewardLine = lines.slice(headerIndex + 1).find((line) => /[+-]\d/.test(line));
+  return combineConsequences(parseConsequenceText(rewardLine ?? ""));
+}
+
+function normalizeEventId(value: string): string {
+  return value.replace(/\\/g, "").trim();
+}
+
+function getPeleadaEventFromMarkdown(markdown: string): GameEvent | null {
+  const event = parseEventsFromMarkdown(markdown).find(
+    (entry) => normalizeEventId(entry.id ?? "") === "STREAMER_PELEADA_DEL_ANO",
+  );
+  return event ?? null;
+}
+
+const STREAMER_PELEADA_EVENT = getPeleadaEventFromMarkdown(streamerEventsMd);
+const PELEADA_REWARDS = {
+  victory: parsePeleadaResultFromMarkdown(streamerEventsMd, "VICTORIA"),
+  defeat: parsePeleadaResultFromMarkdown(streamerEventsMd, "DERROTA"),
+};
+
 const DOC_EVENTS: Partial<Record<Channel, GameEvent[]>> = {
-  ALGA: parseAutomaticEventsFromMarkdown(algaEventsMd),
+  ALGA: parseEventsFromMarkdown(algaEventsMd),
   ORTERIX: parseEventsFromMarkdown(orterixEventsMd).filter((event) => event.id === "ORTERIX_002"),
   RENDER: parseEventsFromMarkdown(renderEventsMd),
   "RUZU TV": parseEventsFromMarkdown(ruzuEventsMd),
@@ -676,7 +726,7 @@ async function refreshDocEvents() {
       const res = await fetch(url);
       if (!res.ok) continue;
       const text = await res.text();
-      const parsed = channel === "RUZU TV" || channel === "FUTUPOP" || channel === "RENDER"
+      const parsed = channel === "ALGA" || channel === "RUZU TV" || channel === "FUTUPOP" || channel === "RENDER"
         ? parseEventsFromMarkdown(text)
         : channel === "ORTERIX"
           ? parseEventsFromMarkdown(text).filter((event) => event.id === "ORTERIX_002")
@@ -1285,9 +1335,19 @@ const FAJENSE_DE_MANOS_RIVALS = [
   "HagovCascote",
 ];
 
-function pickRandomFajenseRival(usedRivals: string[]) {
-  const available = FAJENSE_DE_MANOS_RIVALS.filter((r) => !usedRivals.includes(r));
-  const pool = available.length ? available : FAJENSE_DE_MANOS_RIVALS;
+function parseRivalList(markdown: string): string[] {
+  const listSection = markdown.split(/^REGLAS:/mi)[0] ?? "";
+  return listSection
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/^(?:-|\*)\s+/, ""))
+    .filter((line) => line && !/^LISTA:/i.test(line));
+}
+
+const PELEADA_RIVALS = parseRivalList(peleadaRivalsMd);
+
+function pickRandomRival(rivals: string[], usedRivals: string[]) {
+  const available = rivals.filter((r) => !usedRivals.includes(r));
+  const pool = available.length ? available : rivals;
   const rival = pool[Math.floor(Math.random() * pool.length)];
   return {
     rival,
@@ -1295,8 +1355,16 @@ function pickRandomFajenseRival(usedRivals: string[]) {
   };
 }
 
+function pickRandomFajenseRival(usedRivals: string[]) {
+  return pickRandomRival(FAJENSE_DE_MANOS_RIVALS, usedRivals);
+}
+
+function pickRandomPeleadaRival() {
+  return pickRandomRival(PELEADA_RIVALS.length ? PELEADA_RIVALS : FAJENSE_DE_MANOS_RIVALS, []).rival;
+}
+
 function substituteEventPlaceholders(ev: GameEvent, vars: Record<string, string>): GameEvent {
-  const replace = (value: string) => value.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? `{${key}}`);
+  const replace = (value: string) => value.replace(/\{([^}]+)\}/g, (_, key) => vars[key] ?? `{${key}}`);
   return {
     ...ev,
     title: replace(ev.title),
@@ -1409,6 +1477,16 @@ const INIT: GameState = {
   isFirstMarket: true,
   renderSold: false,
   usedFajenseRivals: [],
+  hasWonFajense: false,
+  hasPlayedPeleada: false,
+  peleadaEvent: null,
+  peleadaRival: null,
+  peleadaBoard: [],
+  peleadaRevealed: [],
+  peleadaSuccesses: 0,
+  peleadaHits: 0,
+  peleadaWon: null,
+  peleadaOutcome: null,
   usedEventKeys: [],
   excludedChannels: [],
   isVerified: false,
@@ -2537,6 +2615,70 @@ function ScreenEventResult({ gs, onContinue }: { gs: GameState; onContinue: () =
   );
 }
 
+function ScreenPeleadaIntro({ gs, onContinue }: { gs: GameState; onContinue: () => void }) {
+  const event = gs.peleadaEvent;
+  if (!event) return null;
+  return (
+    <CareerScreenFrame gs={gs} progressCurrent={7} progressTotal={SEASONS} progressLabel="Progreso de carrera" accent="#f97316">
+      <motion.section initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="mx-auto flex min-h-[560px] max-w-3xl flex-col justify-center p-5 text-center sm:p-10">
+        <p className="font-mono text-xs font-bold uppercase tracking-[0.28em]" style={{ color: "#fb923c" }}>Evento especial de streamer</p>
+        <h2 className="mt-5 font-black uppercase leading-none text-white" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(3.2rem, 9vw, 6.2rem)", textShadow: "0 0 28px rgba(249,115,22,0.45)" }}>{event.title}</h2>
+        <p className="mx-auto mt-6 max-w-2xl text-lg leading-8" style={{ color: "#d4d4e3" }}>{event.description}</p>
+        <motion.button onClick={onContinue} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="mx-auto mt-10 flex w-full max-w-md items-center justify-center gap-2 rounded-xl py-4 font-black uppercase tracking-wide" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.35rem", background: "linear-gradient(135deg, #ea580c, #ef4444)", color: "#fff", boxShadow: "0 0 28px rgba(239,68,68,0.38)" }}>
+          Ir al minijuego <Rocket size={20} />
+        </motion.button>
+      </motion.section>
+    </CareerScreenFrame>
+  );
+}
+
+function ScreenPeleadaGame({ gs, onChoose }: { gs: GameState; onChoose: (index: number) => void }) {
+  const ended = gs.peleadaWon !== null;
+  return (
+    <CareerScreenFrame gs={gs} progressCurrent={7} progressTotal={SEASONS} progressLabel="Progreso de carrera" accent="#ef4444">
+      <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-3xl p-5 sm:p-9">
+        <header className="text-center">
+          <p className="font-mono text-xs font-bold uppercase tracking-[0.24em]" style={{ color: "#fb923c" }}>La Peleada del Año · {gs.peleadaRival}</p>
+          <h2 className="mt-3 font-black uppercase text-white" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(3rem, 8vw, 5rem)" }}>Elegí tu golpe</h2>
+          <p className="mt-2" style={{ color: "#babaca" }}>Conseguí 3 aciertos antes de recibir 3 golpes.</p>
+        </header>
+        <div className="mx-auto mt-7 grid max-w-md grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl p-4 text-center" style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.42)" }}><p className="font-mono text-xs uppercase" style={{ color: "#86efac" }}>Aciertos</p><p className="mt-1 font-mono text-3xl font-black text-white">{gs.peleadaSuccesses} / 3</p></div>
+          <div className="rounded-2xl p-4 text-center" style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.42)" }}><p className="font-mono text-xs uppercase" style={{ color: "#fca5a5" }}>Golpes</p><p className="mt-1 font-mono text-3xl font-black text-white">{gs.peleadaHits} / 3</p></div>
+        </div>
+        <div className="mx-auto mt-7 grid max-w-xl grid-cols-3 gap-3">
+          {gs.peleadaBoard.map((card, index) => {
+            const revealed = gs.peleadaRevealed.includes(index);
+            const success = card === "success";
+            return <motion.button key={index} disabled={revealed || ended} onClick={() => onChoose(index)} whileHover={!revealed ? { scale: 1.035 } : undefined} whileTap={!revealed ? { scale: 0.96 } : undefined} className="aspect-square overflow-hidden rounded-2xl text-4xl font-black disabled:cursor-default" style={{ background: revealed ? success ? "rgba(34,197,94,0.78)" : "rgba(239,68,68,0.78)" : "linear-gradient(145deg, #29235b, #101326)", border: revealed ? `2px solid ${success ? "#86efac" : "#fca5a5"}` : "1px solid rgba(167,139,250,0.55)", boxShadow: revealed ? "0 0 22px rgba(255,255,255,0.12)" : "inset 0 0 16px rgba(167,139,250,0.12)" }} aria-label={`Tarjeta ${index + 1}`}>
+              {revealed ? <img src={boxingGloveImage} alt="Guante de boxeo" className="h-full w-full scale-125 object-cover object-top" /> : "?"}
+            </motion.button>;
+          })}
+        </div>
+      </motion.section>
+    </CareerScreenFrame>
+  );
+}
+
+function ScreenPeleadaResult({ gs, onContinue }: { gs: GameState; onContinue: () => void }) {
+  const won = gs.peleadaWon;
+  const color = won ? "#22c55e" : "#ef4444";
+  const outcome = gs.peleadaOutcome;
+  return <CareerScreenFrame gs={gs} progressCurrent={7} progressTotal={SEASONS} progressLabel="Progreso de carrera" accent={color}>
+    <motion.section initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="mx-auto flex min-h-[540px] max-w-2xl flex-col items-center justify-center p-8 text-center">
+      <div className="text-7xl">{won ? "🏆" : "🥊"}</div>
+      <p className="mt-6 font-mono text-xs font-bold uppercase tracking-[0.25em]" style={{ color }}>{won ? "Victoria" : "Derrota"}</p>
+      <h2 className="mt-4 font-black uppercase leading-none text-white" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "clamp(3rem, 8vw, 5rem)" }}>{won ? "¡Ganaste la pelea!" : "La pelea terminó"}</h2>
+      <p className="mt-5 max-w-lg text-lg leading-7" style={{ color: "#c8c8d7" }}>{won ? "Conseguiste tres aciertos y el premio ya está en tu vitrina." : "Recibiste tres golpes. No obtuviste el premio, pero tu carrera continúa."}</p>
+      {outcome && <div className="mt-6 flex flex-wrap justify-center gap-3">
+        <div className="rounded-xl px-4 py-3" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)" }}><p className="text-xs uppercase" style={{ color: "#a8a8bd" }}>Seguidores</p><Delta v={outcome.followers} /></div>
+        <div className="rounded-xl px-4 py-3" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)" }}><p className="text-xs uppercase" style={{ color: "#a8a8bd" }}>Popularidad</p><Delta v={outcome.reputation ?? 0} suffix="%" /></div>
+      </div>}
+      <motion.button onClick={onContinue} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="mt-9 w-full max-w-sm rounded-xl py-4 font-black uppercase tracking-wide" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.3rem", background: `linear-gradient(135deg, ${color}, ${won ? "#16a34a" : "#dc2626"})`, color: "#fff" }}>Continuar <Rocket className="ml-2 inline" size={20} /></motion.button>
+    </motion.section>
+  </CareerScreenFrame>;
+}
+
 function ScreenSeasonSummary({ gs, onContinue }: { gs: GameState; onContinue: () => void }) {
   const ch = CHANNELS[gs.currentChannel] ?? FALLBACK_CHANNEL;
   const repercussionFollowers = gs.seasonRepercussionFollowers ?? 0;
@@ -2901,6 +3043,7 @@ export default function App() {
         ...effectiveState,
         awardedAutomaticPrizes: nextAwards,
         pendingPrizeUnlocks: [...effectiveState.pendingPrizeUnlocks, ...getAwardIncrements(effectiveState.awardedAutomaticPrizes, nextAwards)],
+        hasWonFajense: s.hasWonFajense || (ok && ev.id === "ORTERIX_001"),
         ...updateRecentPerformance(s, ok ? 100 : 0),
         phase: "eventResult",
         lastResult: { eventTitle: ev.title, optionText: opt.text, wasSuccess: ok, delta: effectiveDelta },
@@ -2966,24 +3109,97 @@ export default function App() {
       return { ...s, ...clearedAwardsSeason, season: nextSeason, careerHistory: hist, phase: "transferMarket", isFirstMarket: false };
   };
 
-  const handleSeasonContinue = useCallback(() => {
-    setGs((s) => {
-      if (s.reputation > 60) {
-        const awardsSeasonBoard = shuffle<AwardsSeasonPrizeId | null>([
+  const continueAfterSeason = (s: GameState): GameState => {
+    if (s.reputation > 60) {
+      return {
+        ...s,
+        phase: "awardsSeason",
+        awardsSeasonBoard: shuffle<AwardsSeasonPrizeId | null>([
           ...AWARDS_SEASON_PRIZE_IDS,
           null, null, null, null, null, null,
-        ]);
+        ]),
+        awardsSeasonRevealed: [],
+        awardsSeasonCompleted: false,
+        awardsSeasonEndedByEmpty: false,
+      };
+    }
+    return completeSeason(s);
+  };
+
+  const handleSeasonContinue = useCallback(() => {
+    setGs((s) => {
+      if (s.season === 7 && s.hasWonFajense && !s.hasPlayedPeleada && STREAMER_PELEADA_EVENT) {
+        const rival = pickRandomPeleadaRival();
         return {
           ...s,
-          phase: "awardsSeason",
-          awardsSeasonBoard,
-          awardsSeasonRevealed: [],
-          awardsSeasonCompleted: false,
-          awardsSeasonEndedByEmpty: false,
+          phase: "peleadaIntro",
+          hasPlayedPeleada: true,
+          peleadaRival: rival,
+          peleadaEvent: substituteEventPlaceholders(STREAMER_PELEADA_EVENT, { "RIVAL PELEADA": rival }),
         };
       }
-      return completeSeason(s);
+      return continueAfterSeason(s);
     });
+  }, []);
+
+  const handlePeleadaIntroContinue = useCallback(() => {
+    setGs((s) => ({
+      ...s,
+      phase: "peleadaGame",
+      // Cinco aciertos y cuatro golpes permiten que cualquiera de los dos
+      // resultados llegue a tres antes de agotar las nueve tarjetas.
+      peleadaBoard: shuffle<("success" | "hit")>(["success", "success", "success", "success", "success", "hit", "hit", "hit", "hit"]),
+      peleadaRevealed: [],
+      peleadaSuccesses: 0,
+      peleadaHits: 0,
+      peleadaWon: null,
+      peleadaOutcome: null,
+    }));
+  }, []);
+
+  const handlePeleadaChoose = useCallback((index: number) => {
+    setGs((s) => {
+      if (s.phase !== "peleadaGame" || s.peleadaRevealed.includes(index) || s.peleadaWon !== null) return s;
+      const card = s.peleadaBoard[index];
+      if (!card) return s;
+      const successes = s.peleadaSuccesses + (card === "success" ? 1 : 0);
+      const hits = s.peleadaHits + (card === "hit" ? 1 : 0);
+      const won = successes >= 3 ? true : hits >= 3 ? false : null;
+      if (won === null) return { ...s, peleadaRevealed: [...s.peleadaRevealed, index], peleadaSuccesses: successes, peleadaHits: hits };
+
+      // Las recompensas vienen de STREAMER.md y no pasan por afinidad: la pelea
+      // pertenece a la carrera del streamer, no al contrato del canal actual.
+      const outcome = won ? PELEADA_REWARDS.victory : PELEADA_REWARDS.defeat;
+      const rewardState = applyEffectiveDelta(outcome, s);
+      if (!won) return {
+        ...s,
+        ...rewardState,
+        peleadaRevealed: [...s.peleadaRevealed, index],
+        peleadaSuccesses: successes,
+        peleadaHits: hits,
+        peleadaWon: false,
+        peleadaOutcome: outcome,
+        phase: "peleadaResult",
+      };
+
+      const nextAwards = awardPrize(rewardState.awardedAutomaticPrizes, PELEADA_DEL_ANO_PRIZE, s.currentChannel);
+      return {
+        ...s,
+        ...rewardState,
+        peleadaRevealed: [...s.peleadaRevealed, index],
+        peleadaSuccesses: successes,
+        peleadaHits: hits,
+        peleadaWon: true,
+        peleadaOutcome: outcome,
+        phase: "peleadaResult",
+        awardedAutomaticPrizes: nextAwards,
+        pendingPrizeUnlocks: [...rewardState.pendingPrizeUnlocks, ...getAwardIncrements(rewardState.awardedAutomaticPrizes, nextAwards)],
+      };
+    });
+  }, []);
+
+  const handlePeleadaResultContinue = useCallback(() => {
+    setGs((s) => continueAfterSeason(s));
   }, []);
 
   const handleAwardsSeasonChoose = useCallback((index: number) => {
@@ -3084,6 +3300,21 @@ export default function App() {
         {gs.phase === "awardsSeason" && (
           <motion.div key={`awards-${gs.season}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
             <ScreenAwardsSeason gs={gs} onChoose={handleAwardsSeasonChoose} />
+          </motion.div>
+        )}
+        {gs.phase === "peleadaIntro" && (
+          <motion.div key="peleada-intro" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+            <ScreenPeleadaIntro gs={gs} onContinue={handlePeleadaIntroContinue} />
+          </motion.div>
+        )}
+        {gs.phase === "peleadaGame" && (
+          <motion.div key="peleada-game" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+            <ScreenPeleadaGame gs={gs} onChoose={handlePeleadaChoose} />
+          </motion.div>
+        )}
+        {gs.phase === "peleadaResult" && (
+          <motion.div key="peleada-result" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+            <ScreenPeleadaResult gs={gs} onContinue={handlePeleadaResultContinue} />
           </motion.div>
         )}
         {gs.phase === "gameOver" && (
