@@ -206,6 +206,8 @@ type Phase =
   | "transferMarket"
   | "event"
   | "eventResult"
+  | "fajense"
+  | "fajenseResult"
   | "seasonSummary"
   | "awardsSeason"
   | "peleadaIntro"
@@ -292,6 +294,7 @@ interface GameState {
   reputation: number;
   careerHistory: CareerEntry[];
   currentEvents: GameEvent[];
+  fajenseEvent: GameEvent | null;
   lastResult: LastResult | null;
   seasonAccum: { followers: number };
   seasonRepercussionFollowers: number | null;
@@ -437,6 +440,8 @@ const CHANNELS: Record<Channel, ChannelInfo> = {
     color: "#047857", glow: "rgba(4,120,87,0.35)", accent: "#34d399",
   },
 };
+
+const FAJENSE_DE_MANOS_EVENT_ID = "ORTERIX_001";
 
 const ALL_CHANNELS: Channel[] = [
   "ORTERIX", "ALGA", "ASS", "RUZU TV", "RENDER", "CARANCHO", "QUERATINA", "FUTUPOP",
@@ -1337,6 +1342,10 @@ const EVENTS: Record<Channel, GameEvent[]> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Fajense conserva su definición existente, pero ya no forma parte del pool
+// contractual de ORTERIX: se dispara como cierre de carrera en temporadas pares.
+const FAJENSE_DE_MANOS_EVENT = EVENTS.ORTERIX.find((event) => event.id === FAJENSE_DE_MANOS_EVENT_ID) ?? null;
+
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -1350,14 +1359,16 @@ const FAJENSE_DE_MANOS_RIVALS = [
   "PuerroXeneize",
   "Gosku",
   "Falito",
-  "Mumu",
+  "Nono",
   "ShinjiBostero",
   "Esprin",
   "Juan Tuffo",
-  "La Paga",
-  "Rulomgod",
-  "Chupa Ramirez",
+  "El Nine",
+  "Trolombot",
+  "La Galga ",
   "HagovCascote",
+  "El CM de Sacachispas",
+  "Jonatan Goldfarb",
 ];
 
 function parseRivalList(markdown: string): string[] {
@@ -1419,6 +1430,19 @@ function applyEventVariables(events: GameEvent[], usedRivals: string[]) {
   return { events: resolved, usedRivals: nextUsed };
 }
 
+function prepareFajenseEvent(usedRivals: string[]) {
+  if (!FAJENSE_DE_MANOS_EVENT) return { event: null, usedRivals };
+  const { rival, usedRivals: nextUsedRivals } = pickRandomFajenseRival(usedRivals);
+  return {
+    event: substituteEventPlaceholders(FAJENSE_DE_MANOS_EVENT, { RIVAL: rival }),
+    usedRivals: nextUsedRivals,
+  };
+}
+
+function shouldPlayFajense(season: number) {
+  return season % 2 === 0 && FAJENSE_DE_MANOS_EVENT !== null;
+}
+
 const RENDER_SOLD_TITLE = "⚡ RENDER FUE VENDIDO";
 
 function buildEventKey(channel: Channel, event: GameEvent) {
@@ -1433,6 +1457,7 @@ function pickEvents(channel: Channel, count: number, renderSold = false, usedEve
     (ev) => !(renderSold && ev.title === RENDER_SOLD_TITLE)
   );
   const pool = [...docPool, ...basePool].filter((ev) => {
+    if (ev.id === FAJENSE_DE_MANOS_EVENT_ID) return false;
     if (ev.appearance !== "UNA_VEZ") return true;
     return !usedEventKeys.includes(buildEventKey(channel, ev));
   });
@@ -1495,6 +1520,7 @@ const INIT: GameState = {
   reputation: 50,
   careerHistory: [],
   currentEvents: [],
+  fajenseEvent: null,
   lastResult: null,
   seasonAccum: { followers: 0 },
   seasonRepercussionFollowers: null,
@@ -2380,11 +2406,11 @@ function ScreenTransferMarket({ gs, onChoose, onNoOffers }: { gs: GameState; onC
   return <ScreenStandardTransferMarket gs={gs} onChoose={onChoose} onNoOffers={onNoOffers} />;
 }
 
-function ScreenEvent({ gs, onChoose, onContinueAutomatic }: { gs: GameState; onChoose: (idx: number) => void; onContinueAutomatic: () => void }) {
-  const ev = gs.currentEvents[gs.eventIndex];
+function ScreenEvent({ gs, event, onChoose, onContinueAutomatic }: { gs: GameState; event?: GameEvent; onChoose: (idx: number) => void; onContinueAutomatic: () => void }) {
+  const ev = event ?? gs.currentEvents[gs.eventIndex];
   const ch = CHANNELS[gs.currentChannel] ?? FALLBACK_CHANNEL;
   const affinity = getContractAffinity(gs, gs.currentChannel);
-  const isSpecial = ev.title.startsWith("⚡");
+  const isSpecial = gs.phase === "fajense" || ev.title.startsWith("⚡");
   const isAutomatic = ev.type === "automatic";
 
   // La pantalla comparte deliberadamente el armazón visual del mercado inicial. De esta
@@ -2425,7 +2451,7 @@ function ScreenEvent({ gs, onChoose, onContinueAutomatic }: { gs: GameState; onC
               <div className="max-w-4xl">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-mono text-xs uppercase tracking-[0.24em]" style={{ color: "#f59e0b" }}>
-                    Temporada {gs.season} · Período {gs.eventIndex + 1}
+                    {gs.phase === "fajense" ? `Temporada ${gs.season} · Cierre especial` : `Temporada ${gs.season} · Período ${gs.eventIndex + 1}`}
                   </p>
                   {isSpecial && (
                     <span className="rounded-full px-2.5 py-1 font-mono text-xs font-bold uppercase"
@@ -3063,6 +3089,14 @@ export default function App() {
     return { ...acc, ...applyEffectiveDelta(effectiveDelta, acc) };
   }, s);
 
+  const finishNormalSeason = (s: GameState): GameState => {
+    if (!shouldPlayFajense(s.season)) return { ...applySeasonRepercussion(s), phase: "seasonSummary" };
+    const { event, usedRivals } = prepareFajenseEvent(s.usedFajenseRivals);
+    return event
+      ? { ...s, fajenseEvent: event, usedFajenseRivals: usedRivals, phase: "fajense" }
+      : { ...applySeasonRepercussion(s), phase: "seasonSummary" };
+  };
+
   const handleIntroNext = useCallback(() => setGs((s) => ({ ...s, phase: "naming" })), []);
 
   const handleNamingConfirm = useCallback((name: string, profile: StreamerProfile) => {
@@ -3120,7 +3154,7 @@ export default function App() {
 
   const handleChooseOption = useCallback((idx: number) => {
     setGs((s) => {
-      const ev = s.currentEvents[s.eventIndex];
+      const ev = s.phase === "fajense" ? s.fajenseEvent : s.currentEvents[s.eventIndex];
       const opt = ev.options?.[idx];
       if (!opt) return s;
       const ok = Math.random() < opt.successChance;
@@ -3135,9 +3169,9 @@ export default function App() {
         ...effectiveState,
         awardedAutomaticPrizes: nextAwards,
         pendingPrizeUnlocks: [...effectiveState.pendingPrizeUnlocks, ...getAwardIncrements(effectiveState.awardedAutomaticPrizes, nextAwards)],
-        hasWonFajense: s.hasWonFajense || (ok && ev.id === "ORTERIX_001"),
+        hasWonFajense: s.hasWonFajense || (ok && ev.id === FAJENSE_DE_MANOS_EVENT_ID),
         ...updateRecentPerformance(s, ok ? 100 : 0),
-        phase: "eventResult",
+        phase: s.phase === "fajense" ? "fajenseResult" : "eventResult",
         lastResult: { eventTitle: ev.title, optionText: opt.text, wasSuccess: ok, delta: effectiveDelta },
       };
     });
@@ -3148,12 +3182,15 @@ export default function App() {
       const ev = s.currentEvents[s.eventIndex];
       const nextState = applyDeltas(ev?.consequences ?? [], s);
       if (s.eventIndex < EVENTS_PER_SEASON - 1) return { ...nextState, phase: "event", eventIndex: s.eventIndex + 1 };
-      return { ...applySeasonRepercussion(nextState), phase: "seasonSummary" };
+      return finishNormalSeason(nextState);
     });
   }, []);
 
   const handleResultContinue = useCallback(() => {
     setGs((s) => {
+      if (s.phase === "fajenseResult") {
+        return { ...applySeasonRepercussion(s), fajenseEvent: null, phase: "seasonSummary" };
+      }
       // Forced transfer (canal te echa y vas al Mercado de Pases)
       if (s.lastResult?.delta.specialOutcome === "forcedTransfer") {
         const hist = [...s.careerHistory];
@@ -3185,7 +3222,7 @@ export default function App() {
       }
 
       if (s.eventIndex < EVENTS_PER_SEASON - 1) return { ...s, phase: "event", eventIndex: s.eventIndex + 1 };
-      return { ...applySeasonRepercussion(s), phase: "seasonSummary" };
+      return finishNormalSeason(s);
     });
   }, []);
 
@@ -3416,8 +3453,18 @@ export default function App() {
             <ScreenEvent gs={gs} onChoose={handleChooseOption} onContinueAutomatic={handleAutomaticContinue} />
           </motion.div>
         )}
+        {gs.phase === "fajense" && gs.fajenseEvent && (
+          <motion.div key={`fajense-${gs.season}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
+            <ScreenEvent gs={gs} event={gs.fajenseEvent} onChoose={handleChooseOption} onContinueAutomatic={handleAutomaticContinue} />
+          </motion.div>
+        )}
         {gs.phase === "eventResult" && gs.lastResult && (
           <motion.div key={`res-${gs.season}-${gs.eventIndex}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
+            <ScreenEventResult gs={gs} onContinue={handleResultContinue} />
+          </motion.div>
+        )}
+        {gs.phase === "fajenseResult" && gs.lastResult && (
+          <motion.div key={`fajense-result-${gs.season}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
             <ScreenEventResult gs={gs} onContinue={handleResultContinue} />
           </motion.div>
         )}
