@@ -44,6 +44,12 @@ interface AwardedPrize {
   count: number;
 }
 
+interface PrizeAwardRecord {
+  prize: AwardedPrize;
+  channel: Channel;
+  season: number;
+}
+
 function normalizePrizeToken(value: string): string {
   return value.replace(/\\/g, "").trim();
 }
@@ -170,6 +176,15 @@ function getAwardIncrements(previousAwards: AwardedPrize[], nextAwards: AwardedP
       ? Array.from({ length: incrementCount }, (_, index) => ({ ...prize, count: previousCount + index + 1 }))
       : [];
   });
+}
+
+function getPrizeAwardRecords(
+  previousAwards: AwardedPrize[],
+  nextAwards: AwardedPrize[],
+  channel: Channel,
+  season: number,
+): PrizeAwardRecord[] {
+  return getAwardIncrements(previousAwards, nextAwards).map((prize) => ({ prize, channel, season }));
 }
 
 function isEligibleForMartinFierroOro(gs: GameState): boolean {
@@ -318,6 +333,7 @@ interface GameState {
   isVerified: boolean;
   pendingVerificationUnlock: boolean;
   awardedAutomaticPrizes: AwardedPrize[];
+  prizeAwardHistory: PrizeAwardRecord[];
   pendingPrizeUnlocks: AwardedPrize[];
   awardsSeasonBoard: (AwardsSeasonPrizeId | null)[];
   awardsSeasonRevealed: number[];
@@ -1544,6 +1560,7 @@ const INIT: GameState = {
   isVerified: false,
   pendingVerificationUnlock: false,
   awardedAutomaticPrizes: [],
+  prizeAwardHistory: [],
   pendingPrizeUnlocks: [],
   awardsSeasonBoard: [],
   awardsSeasonRevealed: [],
@@ -2915,7 +2932,6 @@ function ScreenMartinFierroOroGame({ gs, onComplete }: { gs: GameState; onComple
             <div className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-[#fde68a] bg-[#14111f] text-3xl">🏆</div>
           </div>
         </div>
-        <div className="mt-5 flex w-72 justify-between text-xs font-black uppercase tracking-wider"><span style={{ color: "#fef3c7" }}>Premio</span><span style={{ color: "#fca5a5" }}>Rojo</span><span style={{ color: "#fef3c7" }}>Premio</span><span style={{ color: "#fca5a5" }}>Rojo</span></div>
         <motion.button type="button" onClick={spin} disabled={isSpinning} whileHover={!isSpinning ? { scale: 1.02 } : undefined} whileTap={!isSpinning ? { scale: 0.98 } : undefined} className="mt-9 w-full max-w-sm rounded-xl py-4 font-black uppercase tracking-wide disabled:cursor-not-allowed disabled:opacity-60" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.3rem", background: "linear-gradient(135deg, #d97706, #fbbf24)", color: "#1c1302" }}>
           {isSpinning ? "Girando..." : "Girar la ruleta"}
         </motion.button>
@@ -2986,7 +3002,16 @@ function ScreenGameOver({ gs }: { gs: GameState }) {
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 {gs.careerHistory.map((entry, index) => {
                   const info = CHANNELS[entry.channel] ?? FALLBACK_CHANNEL;
-                  const channelPrizes = gs.awardedAutomaticPrizes.filter((prize) => prize.channel === entry.channel);
+                  const channelPrizes = Array.from(
+                    gs.prizeAwardHistory
+                      .filter((record) => record.channel === entry.channel)
+                      .reduce((prizes, record) => {
+                        const existing = prizes.get(record.prize.id);
+                        if (existing) existing.seasons.add(record.season);
+                        else prizes.set(record.prize.id, { prize: record.prize, seasons: new Set([record.season]) });
+                        return prizes;
+                      }, new Map<string, { prize: AwardedPrize; seasons: Set<number> }>()),
+                  ).map(([, prize]) => prize);
                   return (
                     <div key={`${entry.channel}-${index}`} className="flex items-center justify-between gap-3 rounded-2xl p-4"
                       style={{ background: `${info.color}0d`, border: `1px solid ${info.color}45` }}>
@@ -2996,7 +3021,12 @@ function ScreenGameOver({ gs }: { gs: GameState }) {
                           <p className="truncate font-black uppercase" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.5rem", color: info.accent }}>{info.shortName}</p>
                           {channelPrizes.length > 0 && (
                             <div className="flex shrink-0 items-center gap-1" aria-label={`Premios obtenidos en ${info.shortName}`}>
-                              {channelPrizes.map((prize) => <PrizeIcon key={prize.id} prize={prize} />)}
+                              {channelPrizes.map(({ prize, seasons }) => (
+                                <div key={prize.id} className="flex items-center gap-0.5" title={`${prize.name} · ${seasons.size} ${seasons.size === 1 ? "temporada" : "temporadas"}`}>
+                                  <PrizeIcon prize={prize} />
+                                  <span className="font-mono text-[10px]" style={{ color: "#c084fc" }}>x{seasons.size}</span>
+                                </div>
+                              ))}
                             </div>
                           )}
                         </div>
@@ -3064,6 +3094,7 @@ export default function App() {
       isVerified: s.isVerified || verificationUnlocked,
       pendingVerificationUnlock: s.pendingVerificationUnlock || verificationUnlocked,
       awardedAutomaticPrizes: nextAwards,
+      prizeAwardHistory: [...s.prizeAwardHistory, ...getPrizeAwardRecords(s.awardedAutomaticPrizes, nextAwards, s.currentChannel, s.season)],
       pendingPrizeUnlocks: [...s.pendingPrizeUnlocks, ...prizeUnlocks],
     };
   };
@@ -3133,6 +3164,7 @@ export default function App() {
         usedFajenseRivals: usedRivals,
         usedEventKeys: nextUsedEventKeys,
         awardedAutomaticPrizes: nextAwards,
+        prizeAwardHistory: [...s.prizeAwardHistory, ...getPrizeAwardRecords(s.awardedAutomaticPrizes, nextAwards, channel, s.season)],
         pendingPrizeUnlocks: [...s.pendingPrizeUnlocks, ...getAwardIncrements(s.awardedAutomaticPrizes, nextAwards)],
         contractPerformanceTotal: 0,
         contractPerformancePeriods: 0,
@@ -3168,6 +3200,7 @@ export default function App() {
         ...s,
         ...effectiveState,
         awardedAutomaticPrizes: nextAwards,
+        prizeAwardHistory: [...effectiveState.prizeAwardHistory, ...getPrizeAwardRecords(effectiveState.awardedAutomaticPrizes, nextAwards, s.currentChannel, s.season)],
         pendingPrizeUnlocks: [...effectiveState.pendingPrizeUnlocks, ...getAwardIncrements(effectiveState.awardedAutomaticPrizes, nextAwards)],
         hasWonFajense: s.hasWonFajense || (ok && ev.id === FAJENSE_DE_MANOS_EVENT_ID),
         ...updateRecentPerformance(s, ok ? 100 : 0),
@@ -3333,6 +3366,7 @@ export default function App() {
         peleadaOutcome: outcome,
         phase: "peleadaResult",
         awardedAutomaticPrizes: nextAwards,
+        prizeAwardHistory: [...rewardState.prizeAwardHistory, ...getPrizeAwardRecords(rewardState.awardedAutomaticPrizes, nextAwards, s.currentChannel, s.season)],
         pendingPrizeUnlocks: [...rewardState.pendingPrizeUnlocks, ...getAwardIncrements(rewardState.awardedAutomaticPrizes, nextAwards)],
       };
     });
@@ -3359,6 +3393,7 @@ export default function App() {
         martinFierroOroWon: true,
         phase: "martinFierroOroResult",
         awardedAutomaticPrizes: nextAwards,
+        prizeAwardHistory: [...s.prizeAwardHistory, ...getPrizeAwardRecords(s.awardedAutomaticPrizes, nextAwards, s.currentChannel, s.season)],
         pendingPrizeUnlocks: [...s.pendingPrizeUnlocks, ...getAwardIncrements(s.awardedAutomaticPrizes, nextAwards)],
       };
     });
@@ -3392,6 +3427,7 @@ export default function App() {
         isVerified: s.isVerified || verificationUnlocked,
         pendingVerificationUnlock: s.pendingVerificationUnlock || verificationUnlocked,
         awardedAutomaticPrizes: nextAwards,
+        prizeAwardHistory: [...s.prizeAwardHistory, ...getPrizeAwardRecords(s.awardedAutomaticPrizes, nextAwards, s.currentChannel, s.season)],
         pendingPrizeUnlocks: [...s.pendingPrizeUnlocks, ...prizeUnlocks],
         awardsSeasonRevealed,
         awardsSeasonCompleted: foundAllPrizes,
