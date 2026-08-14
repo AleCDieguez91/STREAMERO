@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Award, CheckCircle2, Info, Rocket, Target, Users } from "lucide-react";
+import { Award, Camera, CheckCircle2, Info, Rocket, Target, Users } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group";
+import { CareerShareCard, downloadCareerShareCard } from "./components/CareerShareCard";
 import { scaleOutcomeByAffinity } from "./game/contract-algorithm";
 import { getAffinityOfferWeight, getChannelAffinity } from "./game/channel-affinities";
 import algaLogo from "../../assets/logos/alga.png";
@@ -2958,6 +2959,40 @@ function ScreenMartinFierroOroResult({ gs, onContinue }: { gs: GameState; onCont
 function ScreenGameOver({ gs }: { gs: GameState }) {
   const rating = getFinalRating(gs.followers);
   const finalChannel = CHANNELS[gs.currentChannel] ?? FALLBACK_CHANNEL;
+  const [isDownloading, setIsDownloading] = useState(false);
+  const shareCardId = "career-share-card";
+  const shareChannels = gs.careerHistory.map((entry) => {
+    const info = CHANNELS[entry.channel] ?? FALLBACK_CHANNEL;
+    const prizes = Array.from(
+      gs.prizeAwardHistory
+        .filter((record) => record.channel === entry.channel)
+        .reduce((grouped, record) => {
+          const key = record.prize.id;
+          const existing = grouped.get(key);
+          if (existing) existing.count += 1;
+          else grouped.set(key, { id: record.prize.id, name: record.prize.name, icon: getPrizeAssetSrc(record.prize.icon), season: record.season, count: 1 });
+          return grouped;
+        }, new Map<string, { id: string; name: string; icon?: string; season: number; count: number }>()),
+    ).map(([, prize]) => prize);
+    return { name: info.shortName, seasons: entry.seasons, logo: info.logo, color: info.color, accent: info.accent, prizes };
+  });
+  const sharePrizes = gs.awardedAutomaticPrizes.map((prize) => ({
+    id: prize.id,
+    name: prize.name,
+    icon: getPrizeAssetSrc(prize.icon),
+    count: prize.count,
+  }));
+  const handleDownloadSummary = async () => {
+    setIsDownloading(true);
+    const safeName = (gs.streamerName.trim() || "streamer").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "streamer";
+    try {
+      await downloadCareerShareCard(shareCardId, `STREAMERO-${safeName}-carrera.png`);
+    } catch (error) {
+      console.error("No se pudo descargar el resumen de carrera", error);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
   return (
     <CareerScreenFrame gs={gs} progressCurrent={SEASONS} progressTotal={SEASONS} progressLabel="Carrera completada" accent={rating.color}>
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="p-4 sm:p-5 xl:p-6">
@@ -3040,12 +3075,34 @@ function ScreenGameOver({ gs }: { gs: GameState }) {
           </section>
         </div>
 
-        <div className="mt-4 flex justify-end">
+        <div className="mt-4 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <motion.button onClick={handleDownloadSummary} disabled={isDownloading} whileHover={{ scale: isDownloading ? 1 : 1.02 }} whileTap={{ scale: isDownloading ? 1 : 0.98 }}
+            className="flex w-full items-center justify-center gap-2 rounded-xl px-6 py-4 font-black uppercase tracking-wide disabled:cursor-wait disabled:opacity-65 sm:w-auto"
+            style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.3rem", background: "rgba(124,58,237,0.13)", border: "1px solid rgba(167,139,250,0.62)", color: "#e9ddff" }}>
+            <Camera size={20} /> {isDownloading ? "Generando PNG..." : "Descargar resumen"}
+          </motion.button>
           <motion.button onClick={() => window.location.reload()} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
             className="flex w-full items-center justify-center gap-2 rounded-xl px-8 py-4 font-black uppercase tracking-wide sm:w-auto"
             style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.3rem", background: "linear-gradient(135deg, #7c3aed, #a855f7)", color: "#fff", boxShadow: "0 0 24px rgba(124,58,237,0.32)" }}>
             Nueva carrera <Rocket size={20} />
           </motion.button>
+        </div>
+        <div aria-hidden="true" style={{ position: "fixed", left: "-12000px", top: 0, width: 1080, height: 1350, pointerEvents: "none" }}>
+          <CareerShareCard
+            id={shareCardId}
+            streamerName={gs.streamerName}
+            streamerType={gs.streamerProfile?.streamerType ?? "Streamer"}
+            personality={PERSONALITIES[gs.streamerProfile?.personality ?? "CHILL"].label}
+            avatar={gs.streamerProfile?.avatar ?? "avatar-a"}
+            isVerified={gs.isVerified}
+            followers={fmt(gs.followers)}
+            popularity={gs.reputation}
+            seasons={gs.careerHistory.reduce((total, entry) => total + entry.seasons, 0)}
+            cancellations={gs.cancellationCount}
+            channels={shareChannels}
+            prizes={sharePrizes}
+            rating={rating}
+          />
         </div>
       </motion.div>
     </CareerScreenFrame>
